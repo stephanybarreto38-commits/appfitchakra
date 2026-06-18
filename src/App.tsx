@@ -224,16 +224,16 @@ function EmailLogin() {
   const goToCode = () => {
     if (!email.includes('@')) { setError('Ingresa un correo válido.'); return; }
     setError('');
+    // Admin bypasses the code step
+    if (email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      doLoginWithEmail(email.trim().toLowerCase(), '');
+      return;
+    }
     setStep('code');
   };
 
-  const doLogin = async () => {
-    const e = email.trim().toLowerCase();
-    const c = code.trim().toUpperCase();
-    if (!c) { setError('Ingresa el código.'); return; }
-    setError('');
+  const doLoginWithEmail = async (e: string, c: string) => {
     setLoading(true);
-
     try {
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-code`,
@@ -246,29 +246,29 @@ function EmailLogin() {
           body: JSON.stringify({ email: e, code: c, redirectTo: window.location.origin }),
         }
       );
-
       const data = await res.json();
-
       if (!res.ok) {
-        if (data.error === 'invalid_code') {
-          setError('Código incorrecto o expirado.');
-        } else if (data.error === 'not_allowed') {
-          setError('Este correo no tiene acceso.');
-        } else {
-          setError('Error al acceder. Inténtalo de nuevo.');
-        }
+        if (data.error === 'invalid_code') setError('Código incorrecto o expirado.');
+        else if (data.error === 'not_allowed') setError('Este correo no tiene acceso.');
+        else setError('Error al acceder. Inténtalo de nuevo.');
         triggerShake();
         setLoading(false);
         return;
       }
-
-      // Navigate to the action_link — Supabase handles auth and redirects back
       window.location.href = data.action_link;
     } catch {
       setError('Error de conexión. Inténtalo de nuevo.');
       triggerShake();
       setLoading(false);
     }
+  };
+
+  const doLogin = () => {
+    const e = email.trim().toLowerCase();
+    const c = code.trim().toUpperCase();
+    if (!c) { setError('Ingresa el código.'); return; }
+    setError('');
+    doLoginWithEmail(e, c);
   };
 
   return (
