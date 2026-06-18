@@ -243,7 +243,7 @@ function EmailLogin() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
-          body: JSON.stringify({ email: e, code: c, redirectTo: window.location.origin }),
+          body: JSON.stringify({ email: e, code: c }),
         }
       );
       const data = await res.json();
@@ -255,7 +255,15 @@ function EmailLogin() {
         setLoading(false);
         return;
       }
-      window.location.href = data.action_link;
+      const { error: verifyErr } = await supabase.auth.verifyOtp({
+        token_hash: data.token_hash,
+        type: 'magiclink',
+      });
+      if (verifyErr) {
+        setError('Error de verificación. Inténtalo de nuevo.');
+        triggerShake();
+        setLoading(false);
+      }
     } catch {
       setError('Error de conexión. Inténtalo de nuevo.');
       triggerShake();
