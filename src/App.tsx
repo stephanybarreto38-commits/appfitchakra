@@ -256,8 +256,9 @@ function EmailLogin() {
         return;
       }
       const { error: verifyErr } = await supabase.auth.verifyOtp({
-        token_hash: data.token_hash,
-        type: 'magiclink',
+        email: e,
+        token: data.otp,
+        type: 'email',
       });
       if (verifyErr) {
         setError('Error de verificación. Inténtalo de nuevo.');

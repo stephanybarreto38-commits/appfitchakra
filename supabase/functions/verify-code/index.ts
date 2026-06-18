@@ -52,22 +52,29 @@ Deno.serve(async (req: Request) => {
     await supabase.from("login_codes").update({ used: true }).eq("id", row.id);
   }
 
-  // Generate magic link and return token_hash for client-side verifyOtp
+  // Ensure user exists, then generate a fresh OTP the client can verify
   const { data, error } = await supabase.auth.admin.generateLink({
     type: "magiclink",
     email: normalizedEmail,
     options: { shouldCreateUser: true },
   });
 
-  if (error || !data?.properties?.hashed_token) {
+  if (error || !data?.properties) {
     return new Response(JSON.stringify({ error: "generate_failed", detail: error?.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  return new Response(JSON.stringify({ token_hash: data.properties.hashed_token }), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  // Return email_otp — client verifies with verifyOtp({ email, token, type: 'email' })
+  return new Response(
+    JSON.stringify({
+      otp: data.properties.email_otp,
+      hashed_token: data.properties.hashed_token,
+    }),
+    {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    }
+  );
 });
