@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ChakraFit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;1,9..144,400;1,9..144,600&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet"/>
+<style>
+html,body{margin:0;padding:0;background:#111;min-height:100%;height:100%}
+*{box-sizing:border-box}
+
+/* ── WRAPPER ── */
+#aw{
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  min-height:100vh;
+  padding:0;
+  background:#0E0919;
+}
+
+/* ── SHELL ── */
+#as{
+  width:100%;
+  max-width:420px;
+  min-height:100vh;
+  background:#1E1530;
+  display:flex;
+  flex-direction:column;
+  position:relative;
+  font-family:'Inter',sans-serif;
+  color:#F3EFE6;
+}
+
+/* Desktop: card flotante */
+@media(min-width:500px){
+  #aw{
+    padding:32px 16px;
+    background:radial-gradient(ellipse at 50% 0%,#2A1A3E 0%,#0E0919 60%);
+    min-height:100vh;
+    align-items:flex-start;
+  }
+  #as{
+    min-height:0;
+    height:auto;
+    min-height:680px;
+    border-radius:28px;
+    box-shadow:0 32px 80px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.06);
+    overflow:hidden;
+  }
+}
+
+/* Wide desktop */
+@media(min-width:900px){
+  #aw{ padding:40px 32px; }
+  #as{ max-width:460px; }
+}
+
+#as *{box-sizing:border-box}
+.fr{font-family:'Fraunces',Georgia,serif}
+.mn{font-family:'Space Grotesk',monospace}
+.sc{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:82px;scrollbar-width:none}
+.sc::-webkit-scrollbar{display:none}
+.iv{background:#FBF7F0;border-radius:18px}
+.gl{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.09);border-radius:18px}
+.bg{background:#E0AD66;color:#2A2235;border:none;border-radius:50px;font-family:'Inter';font-weight:700;font-size:15px;padding:14px 20px;cursor:pointer;width:100%;display:block;text-align:center}
+.nv{position:absolute;bottom:0;left:0;right:0;height:70px;background:rgba(14,9,25,0.97);border-top:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;z-index:20}
+.tb{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 0;cursor:pointer}
+.tl{font-size:10px;color:#8B7FA8}
+.tb.on .tl{color:#E0AD66}
+.ip{width:100%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(255,255,255,0.15);border-radius:14px;color:#F3EFE6;font-size:16px;padding:14px 16px;outline:none}
+.ip:focus{border-color:#E0AD66}
+@keyframes br{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes fd{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes pp{0%{transform:scale(0.7);opacity:0}70%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+@keyframes fl{0%,100%{transform:scale(1) rotate(-3deg)}50%{transform:scale(1.12) rotate(3deg)}}
+@keyframes ef{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes sh{0%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}100%{transform:translateX(0)}}
+</style>
+</head>
+<body>
+<div id="aw"><div id="as"></div></div>
+<script src="https://unpkg.com/preact@10/dist/preact.umd.js"></script>
+<script src="https://unpkg.com/preact@10/hooks/dist/hooks.umd.js"></script>
+<script src="https://unpkg.com/htm@3/dist/htm.umd.js"></script>
+<script>
+// ═══════════════════════════════════════════
+// CLAVE MAESTRA — cambia esto para invalidar
+// todos los códigos anteriores y generar nuevos
+// ═══════════════════════════════════════════
+const MASTER_KEY = 'chakrafit_sagrada_2024';
+const ADMIN = 'stephanybarreto38@gmail.com';
+
+function genCode(email){
+  const str = email.toLowerCase().trim() + '::' + MASTER_KEY;
+  let h = 0;
+  for(let i = 0; i < str.length; i++){ h = ((h << 5) - h + str.charCodeAt(i)) | 0; }
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  let n = Math.abs(h);
+  for(let i = 0; i < 8; i++){
+    code += chars[n % chars.length];
+    n = Math.floor(n / chars.length) || Math.abs(h * (i + 2)) % 1e9;
+  }
+  return code.slice(0, 4) + '-' + code.slice(4, 8);
+}
+
+function verifyAccess(email, code){
+  if(email === ADMIN) return true;
+  return code.toUpperCase().replace(/[^A-Z0-9]/g, '') === genCode(email).replace('-', '');
+}
+
+(function(){
+const { h, render } = preact;
+const { useState, useEffect, useRef } = preactHooks;
+const html = htm.bind(h);
+
+const LS = {
+  g: (k, d) => { try { const v = localStorage.getItem('cf_' + k); return v !== null ? JSON.parse(v) : d; } catch { return d; } },
+  s: (k, v) => { try { localStorage.setItem('cf_' + k, JSON.stringify(v)); } catch {} }
+};
+
+function getInvited(){ return LS.g('invited', []); }
+function addInvited(email){
+  const list = getInvited();
+  if(!list.includes(email)){ LS.s('invited', [...list, email]); }
+}
+function removeInvited(email){ LS.s('invited', getInvited().filter(e => e !== email)); }
+
+function tod(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function yestStr(){ const d = new Date(); d.setDate(d.getDate()-1); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function dbet(a, b){ return Math.floor((new Date(b) - new Date(a)) / 864e5); }
+
+function boot(){
+  const t = tod(), ys = yestStr(), lo = LS.g('last_open', '');
+  let day = LS.g('prog_day', 1);
+  if(lo && lo !== t){ day = Math.min(30, day + dbet(lo, t)); LS.s('prog_day', day); }
+  LS.s('last_open', t);
+  const storedStreak = LS.g('streak', 0), lc = LS.g('last_complete', '');
+  const effStreak = (lc === t || lc === ys) ? storedStreak : 0;
+  return { name: LS.g('name', ''), day, streak: effStreak, lc, today: t, yesterday: ys };
+}
+
+function parseSecs(reps){
+  const r = reps.toLowerCase();
+  const mC = r.match(/×\s*(\d+)\s*(min|seg)/); if(mC) return mC[2].startsWith('min') ? +mC[1]*60 : +mC[1];
+  const mM = r.match(/(\d+)\s*min/); if(mM) return +mM[1]*60;
+  const mS = r.match(/(\d+)\s*seg/); if(mS) return +mS[1];
+  return 0;
+}
+function hasSide(r){ return /por lado/i.test(r); }
+
+// ── CAMPANA AL TERMINAR ──
+function playBell(){
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    [[0, 528, 1.4],[0.75, 660, 1.1],[1.45, 396, 1.8]].forEach(([t, freq, dur]) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.type = 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0, ac.currentTime + t);
+      g.gain.linearRampToValueAtTime(0.22, ac.currentTime + t + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + dur);
+      o.start(ac.currentTime + t); o.stop(ac.currentTime + t + dur + 0.1);
+    });
+  } catch(e){}
+}
+
+// ── TIMER ──
+function Timer({ totalSecs, color, reps }){
+  const [rem, sRem] = useState(totalSecs);
+  const [run, sRun] = useState(true);
+  const [done, sDone] = useState(false);
+  const iv = useRef(null);
+  useEffect(() => { sRem(totalSecs); sRun(true); sDone(false); }, [totalSecs]);
+  useEffect(() => {
+    clearInterval(iv.current);
+    if(run && rem > 0){
+      iv.current = setInterval(() => {
+        sRem(r => { if(r <= 1){ clearInterval(iv.current); sDone(true); playBell(); return 0; } return r - 1; });
+      }, 1000);
+    }
+    return () => clearInterval(iv.current);
+  }, [run]);
+  const m = Math.floor(rem/60), s = rem%60, R = 42, C = 2*Math.PI*R, off = C*(rem/totalSecs);
+  return html`<div style=${{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, padding:'6px 0 4px' }}>
+    ${hasSide(reps) && html`<div style=${{ background:'rgba(255,255,255,0.07)', borderRadius:20, padding:'4px 12px', fontSize:10, color:'#C7BCDA', fontWeight:600, letterSpacing:'1px' }}>POR CADA LADO</div>`}
+    <div style=${{ position:'relative', width:110, height:110 }}>
+      <svg width="110" height="110" viewBox="0 0 110 110" style=${{ transform:'rotate(-90deg)' }}>
+        <circle cx="55" cy="55" r=${R} fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="7"/>
+        <circle cx="55" cy="55" r=${R} fill="none" stroke=${done ? '#5A9E6F' : color} stroke-width="7"
+          stroke-dasharray=${C.toFixed(2)} stroke-dashoffset=${done ? C.toFixed(2) : off.toFixed(2)}
+          stroke-linecap="round" style=${{ transition:'stroke-dashoffset 0.85s linear,stroke 0.3s' }}/>
+      </svg>
+      <div style=${{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+        ${done
+          ? html`<span style=${{ fontSize:28 }}>✓</span>`
+          : html`<span class="mn" style=${{ color:'#F3EFE6', fontSize:24, fontWeight:700 }}>${m}:${String(s).padStart(2,'0')}</span>`}
+      </div>
+    </div>
+    ${done
+      ? html`<p style=${{ color:'#5A9E6F', fontSize:13, fontWeight:700 }}>¡Tiempo completado!</p>`
+      : html`<div style=${{ display:'flex', gap:8 }}>
+          <button onClick=${() => {
+            clearInterval(iv.current);
+            sRun(r => {
+              const nv = !r;
+              if(nv && rem > 0){
+                iv.current = setInterval(() => {
+                  sRem(r2 => { if(r2 <= 1){ clearInterval(iv.current); sDone(true); return 0; } return r2 - 1; });
+                }, 1000);
+              }
+              return nv;
+            });
+          }} style=${{ background:'rgba(255,255,255,0.09)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:50, color:'#C7BCDA', fontSize:12, padding:'7px 16px', cursor:'pointer', fontFamily:'Inter', fontWeight:600 }}>${run ? '⏸ Pausar' : '▶ Reanudar'}</button>
+          <button onClick=${() => { clearInterval(iv.current); sRem(totalSecs); sDone(false); sRun(true); }} style=${{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.09)', borderRadius:50, color:'#8B7FA8', fontSize:12, padding:'7px 12px', cursor:'pointer', fontFamily:'Inter' }}>↺</button>
+        </div>`}
+  </div>`;
+}
+
+// ── SVG ILUSTRACIONES ──
+const SV = {
+  meditate: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="40" cy="16" r="7" fill="${c}"/><line x1="40" y1="23" x2="40" y2="44" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><path d="M40 44 Q27 52 18 52" stroke="${c}" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M40 44 Q53 52 62 52" stroke="${c}" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="17" cy="52" r="4" fill="${c}"/><circle cx="63" cy="52" r="4" fill="${c}"/><line x1="40" y1="31" x2="24" y2="44" stroke="${c}" stroke-width="3.5" stroke-linecap="round"/><line x1="40" y1="31" x2="56" y2="44" stroke="${c}" stroke-width="3.5" stroke-linecap="round"/><circle cx="23" cy="45" r="3.5" fill="${c}"/><circle cx="57" cy="45" r="3.5" fill="${c}"/></svg>`,
+  squat: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="40" cy="10" r="7" fill="${c}"/><line x1="40" y1="17" x2="40" y2="38" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="40" y1="24" x2="19" y2="33" stroke="${c}" stroke-width="4" stroke-linecap="round"/><line x1="40" y1="24" x2="61" y2="33" stroke="${c}" stroke-width="4" stroke-linecap="round"/><circle cx="18" cy="34" r="4" fill="${c}"/><circle cx="62" cy="34" r="4" fill="${c}"/><line x1="40" y1="38" x2="24" y2="56" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="24" y1="56" x2="20" y2="69" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="40" y1="38" x2="56" y2="56" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="56" y1="56" x2="60" y2="69" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><rect x="14" y="67" width="12" height="5" rx="2.5" fill="${c}"/><rect x="54" y="67" width="12" height="5" rx="2.5" fill="${c}"/></svg>`,
+  bridge: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><line x1="8" y1="68" x2="72" y2="68" stroke="${c}" stroke-width="2" stroke-linecap="round" opacity="0.25"/><circle cx="13" cy="62" r="6" fill="${c}"/><path d="M19 60 Q28 30 40 24 Q52 30 61 60" stroke="${c}" stroke-width="4.5" fill="none" stroke-linecap="round"/><rect x="56" y="58" width="12" height="5" rx="2.5" fill="${c}"/></svg>`,
+  plank: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="13" cy="33" r="7" fill="${c}"/><line x1="19" y1="35" x2="67" y2="44" stroke="${c}" stroke-width="5" stroke-linecap="round"/><line x1="25" y1="37" x2="21" y2="53" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><rect x="14" y="51" width="13" height="5" rx="2.5" fill="${c}"/><line x1="42" y1="42" x2="38" y2="57" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><rect x="31" y="55" width="13" height="5" rx="2.5" fill="${c}"/></svg>`,
+  cobra: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="40" cy="20" r="7" fill="${c}"/><path d="M40 27 Q40 38 38 48 Q35 58 18 63" stroke="${c}" stroke-width="4.5" fill="none" stroke-linecap="round"/><line x1="38" y1="43" x2="23" y2="35" stroke="${c}" stroke-width="4" stroke-linecap="round"/><line x1="38" y1="43" x2="53" y2="37" stroke="${c}" stroke-width="4" stroke-linecap="round"/><circle cx="21" cy="34" r="4" fill="${c}"/><circle cx="55" cy="36" r="4" fill="${c}"/><line x1="18" y1="63" x2="62" y2="63" stroke="${c}" stroke-width="4" stroke-linecap="round"/></svg>`,
+  twist: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="40" cy="12" r="7" fill="${c}"/><line x1="40" y1="19" x2="40" y2="42" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="40" y1="28" x2="17" y2="22" stroke="${c}" stroke-width="4" stroke-linecap="round"/><line x1="40" y1="28" x2="63" y2="35" stroke="${c}" stroke-width="4" stroke-linecap="round"/><circle cx="16" cy="21" r="4" fill="${c}"/><circle cx="64" cy="36" r="4" fill="${c}"/><line x1="40" y1="42" x2="26" y2="56" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="40" y1="42" x2="54" y2="56" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/></svg>`,
+  floor: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="60" cy="44" r="7" fill="${c}"/><path d="M54 47 Q40 40 22 46" stroke="${c}" stroke-width="5" fill="none" stroke-linecap="round"/><line x1="22" y1="46" x2="11" y2="39" stroke="${c}" stroke-width="4" stroke-linecap="round"/><circle cx="10" cy="38" r="4" fill="${c}"/><line x1="60" y1="51" x2="52" y2="63" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="60" y1="51" x2="68" y2="63" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/></svg>`,
+  hips: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="40" cy="10" r="7" fill="${c}"/><line x1="40" y1="17" x2="40" y2="40" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><ellipse cx="40" cy="40" rx="13" ry="7" fill="none" stroke="${c}" stroke-width="2.5" stroke-dasharray="4 3"/><line x1="34" y1="46" x2="30" y2="66" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="46" y1="46" x2="50" y2="66" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><rect x="23" y="64" width="13" height="5" rx="2.5" fill="${c}"/><rect x="44" y="64" width="13" height="5" rx="2.5" fill="${c}"/></svg>`,
+  stretch: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="40" cy="13" r="7" fill="${c}"/><line x1="40" y1="20" x2="40" y2="48" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="40" y1="28" x2="17" y2="13" stroke="${c}" stroke-width="4" stroke-linecap="round"/><line x1="40" y1="28" x2="63" y2="13" stroke="${c}" stroke-width="4" stroke-linecap="round"/><circle cx="16" cy="12" r="4" fill="${c}"/><circle cx="64" cy="12" r="4" fill="${c}"/><line x1="40" y1="48" x2="28" y2="67" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="40" y1="48" x2="52" y2="67" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><rect x="22" y="65" width="12" height="5" rx="2.5" fill="${c}"/><rect x="46" y="65" width="12" height="5" rx="2.5" fill="${c}"/></svg>`,
+  tree: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="40" cy="10" r="7" fill="${c}"/><line x1="40" y1="17" x2="40" y2="48" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="40" y1="26" x2="24" y2="17" stroke="${c}" stroke-width="4" stroke-linecap="round"/><line x1="40" y1="26" x2="56" y2="17" stroke="${c}" stroke-width="4" stroke-linecap="round"/><circle cx="23" cy="16" r="4" fill="${c}"/><circle cx="57" cy="16" r="4" fill="${c}"/><line x1="40" y1="48" x2="40" y2="70" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="40" y1="57" x2="57" y2="50" stroke="${c}" stroke-width="4" stroke-linecap="round"/><circle cx="58" cy="49" r="4" fill="${c}"/><rect x="34" y="68" width="12" height="5" rx="2.5" fill="${c}"/></svg>`,
+  pushup: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="13" cy="36" r="7" fill="${c}"/><line x1="19" y1="38" x2="67" y2="46" stroke="${c}" stroke-width="5" stroke-linecap="round"/><line x1="26" y1="40" x2="21" y2="52" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="21" y1="52" x2="34" y2="54" stroke="${c}" stroke-width="4" stroke-linecap="round"/><circle cx="35" cy="54" r="4" fill="${c}"/><line x1="55" y1="44" x2="51" y2="58" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><rect x="44" y="56" width="13" height="5" rx="2.5" fill="${c}"/></svg>`,
+  legwall: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><line x1="68" y1="6" x2="68" y2="74" stroke="${c}" stroke-width="2" stroke-linecap="round" opacity="0.25"/><circle cx="16" cy="56" r="6" fill="${c}"/><line x1="22" y1="56" x2="55" y2="56" stroke="${c}" stroke-width="5" stroke-linecap="round"/><line x1="49" y1="56" x2="49" y2="14" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="61" y1="56" x2="61" y2="14" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><rect x="43" y="10" width="11" height="5" rx="2.5" fill="${c}"/><rect x="56" y="10" width="11" height="5" rx="2.5" fill="${c}"/></svg>`,
+  sunsal: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="40" cy="6" r="5" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.35"/><circle cx="40" cy="16" r="7" fill="${c}"/><line x1="40" y1="23" x2="40" y2="48" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="38" y1="29" x2="32" y2="13" stroke="${c}" stroke-width="4" stroke-linecap="round"/><line x1="42" y1="29" x2="48" y2="13" stroke="${c}" stroke-width="4" stroke-linecap="round"/><circle cx="31" cy="12" r="4" fill="${c}"/><circle cx="49" cy="12" r="4" fill="${c}"/><line x1="40" y1="48" x2="30" y2="68" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="40" y1="48" x2="50" y2="68" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><rect x="24" y="66" width="12" height="5" rx="2.5" fill="${c}"/><rect x="44" y="66" width="12" height="5" rx="2.5" fill="${c}"/></svg>`,
+  mountain: c => `<svg viewBox="0 0 80 80" width="100%" height="100%"><circle cx="40" cy="40" r="36" fill="${c}18"/><circle cx="13" cy="31" r="7" fill="${c}"/><line x1="19" y1="33" x2="67" y2="42" stroke="${c}" stroke-width="5" stroke-linecap="round"/><line x1="25" y1="35" x2="21" y2="51" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><rect x="14" y="49" width="13" height="5" rx="2.5" fill="${c}"/><line x1="44" y1="41" x2="38" y2="54" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><circle cx="53" cy="36" r="5" fill="${c}" opacity="0.5"/><line x1="53" y1="41" x2="50" y2="55" stroke="${c}" stroke-width="4" stroke-linecap="round" stroke-dasharray="3 2"/><rect x="43" y="53" width="12" height="4" rx="2" fill="${c}" opacity="0.6"/></svg>`,
+};
+function svgFor(n, c){
+  const t = n.toLowerCase();
+  if(/medita|respiro|pranayama|escaneo|integra|4-7-8|zumbido|humm|respirac/.test(t)) return SV.meditate(c);
+  if(/sentad/.test(t)) return SV.squat(c);
+  if(/puente|glút|elevacion/.test(t)) return SV.bridge(c);
+  if(/estocad|lunge/.test(t)) return SV.squat(c);
+  if(/árbol|arbol|águila|aguila|balanceo|un pie/.test(t)) return SV.tree(c);
+  if(/mountain/.test(t)) return SV.mountain(c);
+  if(/plank/.test(t)) return SV.plank(c);
+  if(/push.?up|flexion/.test(t)) return SV.pushup(c);
+  if(/pared/.test(t)) return SV.legwall(c);
+  if(/saludo|sol completo/.test(t)) return SV.sunsal(c);
+  if(/cobra|camello|pez/.test(t)) return SV.cobra(c);
+  if(/twist|russian|core|crunch|bicicl/.test(t)) return SV.twist(c);
+  if(/niño|mariposa|paloma|sukhasana/.test(t)) return SV.floor(c);
+  if(/circulo|círculo|ondulat|movimiento|cader/.test(t)) return SV.hips(c);
+  if(/apertura|roll|estira|trapec|hombro|cuello/.test(t)) return SV.stretch(c);
+  return SV.meditate(c);
+}
+function Img({ name, color }){
+  return html`<div style=${{ width:'100%', height:'100%', borderRadius:14, overflow:'hidden' }} dangerouslySetInnerHTML=${{ __html: svgFor(name, color) }}/>`;
+}
+
+// ── DATOS: AFIRMACIONES DIARIAS ──
+const DD = [
+  {msg:'Soy tierra. Soy estable. Soy hogar.',m:{d:'2 min',txt:'Párate descalza. 5 respiraciones profundas sintiendo la tierra.'},md:{d:'1 min',txt:'Toca algo de la naturaleza: una piedra, madera, tierra.'},n:{d:'5 min',txt:'Escribe: ¿qué personas o lugares me hacen sentir en casa?'}},
+  {msg:'Mis raíces me sostienen incluso en la tormenta.',m:{d:'3 min',txt:'Postura montaña: siente el peso de tu cuerpo sobre la tierra.'},md:{d:'2 min',txt:'Di 5 veces: "Estoy aquí. Estoy segura. Estoy bien."'},n:{d:'4 min',txt:'Lista 3 cosas que te dieron seguridad hoy.'}},
+  {msg:'Confío en el ritmo de mi cuerpo.',m:{d:'2 min',txt:'Masajea las plantas de los pies antes de levantarte.'},md:{d:'sin t.',txt:'Come algo con plena atención. Sin pantallas.'},n:{d:'5 min',txt:'¿En qué momento me sentí más arraigada hoy?'}},
+  {msg:'Hoy me permito descansar sin culpa.',m:{d:'3 min',txt:'Inhala rojo. Exhala tensión. 10 respiraciones de raíz.'},md:{d:'3 min',txt:'Camina lento y nota el contacto de cada pie con el piso.'},n:{d:'5 min',txt:'Escribe qué necesitas soltar para sentirte más liviana.'}},
+  {msg:'Soy agua. Me adapto y fluyo.',m:{d:'2 min',txt:'Círculos de cadera suaves. Despierta la energía creativa.'},md:{d:'2 min',txt:'Observa algo bello sin sacarle foto. Solo con los ojos.'},n:{d:'5 min',txt:'¿Qué me da placer genuino y no me permito con frecuencia?'}},
+  {msg:'Mi creatividad es sagrada y sin límites.',m:{d:'3 min',txt:'Pon música y muévete libremente. Sin coreografía, sin juicio.'},md:{d:'3 min',txt:'Dibuja lo que sea con tu mano no dominante.'},n:{d:'4 min',txt:'¿Qué emoción sentí hoy que no expresé?'}},
+  {msg:'Hoy me permito sentir sin juzgar.',m:{d:'1 min',txt:'Toma agua con conciencia.'},md:{d:'sin t.',txt:'Haz algo diferente a lo habitual.'},n:{d:'5 min',txt:'¿Cuándo fluí sin esfuerzo hoy?'}},
+  {msg:'El placer es una práctica espiritual.',m:{d:'1 min',txt:'Huele algo rico: café, una fruta, aceite esencial.'},md:{d:'1 min',txt:'Sonríe sin razón por 20 segundos.'},n:{d:'5 min',txt:'Lista 5 cosas que disfrutas con el cuerpo, no la mente.'}},
+  {msg:'Soy fuego. Actúo con decisión.',m:{d:'2 min',txt:'Manos en el plexo solar. Di: "Hoy actúo."'},md:{d:'30 s',txt:'Toma una decisión pequeña en menos de 30 segundos.'},n:{d:'4 min',txt:'¿En qué momento de hoy sentí mi poder?'}},
+  {msg:'Mi poder no amenaza, ilumina.',m:{d:'2 min',txt:'Respiración de fuego: 20 exhalos cortos y fuertes.'},md:{d:'3 min',txt:'Envía un mensaje de reconocimiento a alguien.'},n:{d:'5 min',txt:'¿Qué haría si no tuviera miedo al juicio de otros?'}},
+  {msg:'Hoy tomo decisiones sin buscar aprobación.',m:{d:'2 min',txt:'Párate derecha. Hombros atrás. Respira desde el centro.'},md:{d:'sin t.',txt:'Di "no" a algo que no quieras hacer hoy.'},n:{d:'4 min',txt:'¿Qué logré hoy que no creía posible?'}},
+  {msg:'Confío en mi criterio y mi instinto.',m:{d:'2 min',txt:'Manos en el abdomen. Siente el calor. Di: soy capaz.'},md:{d:'3 min',txt:'1 decisión que puedes tomar hoy sin pedir permiso.'},n:{d:'5 min',txt:'¿En qué momento de hoy confié plenamente en mí?'}},
+  {msg:'Soy la autora de mi propia historia.',m:{d:'3 min',txt:'Visualiza una llama dorada en tu plexo solar.'},md:{d:'sin t.',txt:'Acepta un cumplido hoy sin restar mérito.'},n:{d:'6 min',txt:'¿Qué aprendí sobre mi poder esta semana?'}},
+  {msg:'Soy amor. Me permito recibir.',m:{d:'2 min',txt:'Mano derecha en el corazón. 5 respiraciones de amor.'},md:{d:'1 min',txt:'Envía amor mental a alguien difícil.'},n:{d:'5 min',txt:'Escribe: "Lo que más me gusta de mí es..."'}},
+  {msg:'Mi corazón tiene espacio para todo.',m:{d:'1 min',txt:'Di en voz alta: "Merezco amor sin condiciones."'},md:{d:'sin t.',txt:'Recibe un halago sin minimizarlo.'},n:{d:'4 min',txt:'5 cosas que te agradeces a ti misma hoy.'}},
+  {msg:'Hoy me trato con la ternura que merezco.',m:{d:'2 min',txt:'Abrazo de mariposa: palmea suave tu pecho.'},md:{d:'sin t.',txt:'Haz algo amable por ti.'},n:{d:'5 min',txt:'¿Qué le daría a mi mejor amiga que no me doy a mí?'}},
+  {msg:'El amor propio no es egoísmo, es práctica.',m:{d:'3 min',txt:'Visualiza luz verde que sale de tu pecho.'},md:{d:'2 min',txt:'Perdona mentalmente algo pequeño.'},n:{d:'5 min',txt:'¿Cómo me amoré hoy?'}},
+  {msg:'Soy voz. Mi verdad tiene peso.',m:{d:'2 min',txt:'Humming: zumba "mmm" 5 veces largas.'},md:{d:'sin t.',txt:'Di lo que piensas en la próxima conversación.'},n:{d:'5 min',txt:'¿Qué no dije hoy que necesitaba decir?'}},
+  {msg:'Hoy digo lo que pienso con claridad.',m:{d:'3 min',txt:'Lee en voz alta algo que te inspire.'},md:{d:'sin t.',txt:'Expresa una opinión hoy sin disculparte.'},n:{d:'6 min',txt:'Escribe una carta que no vas a enviar.'}},
+  {msg:'Mi expresión crea realidad.',m:{d:'3 min',txt:'Canta en la ducha o en tu cuarto.'},md:{d:'1 min',txt:'Nombra cómo te sientes exactamente.'},n:{d:'5 min',txt:'¿Qué quiero que el mundo sepa de mí?'}},
+  {msg:'Comunico desde el amor, no el miedo.',m:{d:'2 min',txt:'Di 3 verdades sobre ti que normalmente callas.'},md:{d:'sin t.',txt:'Escucha activamente sin preparar respuesta.'},n:{d:'4 min',txt:'¿Mi voz de hoy fue auténtica o complaciente?'}},
+  {msg:'Soy visión. Veo con claridad interior.',m:{d:'5 min',txt:'Siéntate en silencio. Sin teléfono.'},md:{d:'2 min',txt:'Escribe la primera impresión sin analizarla.'},n:{d:'4 min',txt:'Anota cualquier imagen mental que hayas tenido hoy.'}},
+  {msg:'Confío en los mensajes de mi cuerpo.',m:{d:'2 min',txt:'Con ojos cerrados, dibuja en el aire lo que sientes.'},md:{d:'sin t.',txt:'Confía en una corazonada y actúa.'},n:{d:'5 min',txt:'¿Cuándo ignoré mi intuición hoy?'}},
+  {msg:'Mi intuición es un regalo, no un error.',m:{d:'1 min',txt:'Frota suavemente el entrecejo en círculos.'},md:{d:'2 min',txt:'Observa una situación desde otro punto de vista.'},n:{d:'5 min',txt:'¿Qué patrón estás viendo en tu vida?'}},
+  {msg:'Hoy observo antes de reaccionar.',m:{d:'4 min',txt:'Visualiza cómo quieres que sea tu día.'},md:{d:'1 min',txt:'Pregúntate: ¿qué siento, más allá de lo que pienso?'},n:{d:'5 min',txt:'¿Qué supe hoy que no sabías que ya sabías?'}},
+  {msg:'Soy luz. Soy parte del todo.',m:{d:'5 min',txt:'Cinco minutos de silencio total.'},md:{d:'2 min',txt:'Mira el cielo por 2 minutos sin pensar.'},n:{d:'8 min',txt:'¿Qué aprendí de mí en estos 30 días?'}},
+  {msg:'Confío en el plan del universo para mí.',m:{d:'5 min',txt:'Medita sin ninguna intención.'},md:{d:'1 min',txt:'Suelta una expectativa sobre este día.'},n:{d:'6 min',txt:'Gratitud: 3 cosas que no elegiste pero te formaron.'}},
+  {msg:'Hoy suelto el control y confío.',m:{d:'4 min',txt:'Inhala expansión, exhala lo que no eres tú.'},md:{d:'5 min',txt:'Haz algo sin propósito.'},n:{d:'7 min',txt:'¿En qué me convertí silenciosamente este mes?'}},
+  {msg:'Soy suficiente exactamente como soy.',m:{d:'5 min',txt:'Visualiza luz blanca entrando por la coronilla.'},md:{d:'2 min',txt:'Recuerda una versión anterior de ti. Envíale amor.'},n:{d:'8 min',txt:'Carta a tu yo de hace un mes.'}},
+  {msg:'Este mes me transformé en silencio.',m:{d:'7 min',txt:'Siéntate en silencio. Este mes fue un ritual.'},md:{d:'sin t.',txt:'Celebra tu llegada al día 30 como elijas.'},n:{d:'10 min',txt:'Escribe tu intención para el próximo ciclo.'}},
+];
+
+// ── 7 FASES / CHAKRAS ──
+const PH = [
+  {id:'raiz',    name:'Chakra Raíz',    theme:'Presencia y Arraigo',   days:[1,2,3,4],        c:'#C44B4B',cl:'rgba(196,75,75,0.15)',  cb:'rgba(196,75,75,0.4)',  el:'🌍',en:'Tierra',int:'Me siento segura y arraigada en la tierra.',   om:'Tu cuerpo es tu hogar más sagrado. Esta semana, vuelve a él.'},
+  {id:'sacro',   name:'Chakra Sacro',   theme:'Creatividad y Flujo',   days:[5,6,7,8],        c:'#E07A3A',cl:'rgba(224,122,58,0.15)', cb:'rgba(224,122,58,0.4)', el:'🌊',en:'Agua',  int:'Fluyo con la vida con gracia y alegría.',       om:'Tu creatividad no necesita permiso. Solo movimiento.'},
+  {id:'solar',   name:'Chakra Solar',   theme:'Poder y Confianza',     days:[9,10,11,12,13],  c:'#D9AE3F',cl:'rgba(217,174,63,0.15)',cb:'rgba(217,174,63,0.4)', el:'🔥',en:'Fuego', int:'Activo mi poder personal. Soy suficiente.',    om:'Tu fuego interior te pide que actúes sin permiso.'},
+  {id:'corazon', name:'Chakra Corazón', theme:'Amor y Compasión',      days:[14,15,16,17],    c:'#5A9E6F',cl:'rgba(90,158,111,0.15)', cb:'rgba(90,158,111,0.4)', el:'💚',en:'Aire',  int:'Me abro al amor. Me doy lo que doy a los demás.',om:'La compasión empieza en ti.'},
+  {id:'garganta',name:'Chakra Garganta',theme:'Expresión y Verdad',    days:[18,19,20,21],    c:'#4A90C4',cl:'rgba(74,144,196,0.15)', cb:'rgba(74,144,196,0.4)', el:'🌀',en:'Éter',  int:'Mi voz importa. Digo mi verdad con amor.',      om:'Lo que guardas en silencio también pesa.'},
+  {id:'tojo',    name:'Tercer Ojo',     theme:'Intuición y Visión',    days:[22,23,24,25],    c:'#7B68C8',cl:'rgba(123,104,200,0.15)',cb:'rgba(123,104,200,0.4)',el:'💫',en:'Luz',   int:'Confío en mi intuición.',                       om:'Tu intuición habla en susurros.'},
+  {id:'corona',  name:'Chakra Corona',  theme:'Trascendencia y Cierre',days:[26,27,28,29,30], c:'#A87DC8',cl:'rgba(168,125,200,0.15)',cb:'rgba(168,125,200,0.4)',el:'✨',en:'Cosmos', int:'Soy parte de algo más grande.',                 om:'Este mes fue un ritual completo.'},
+];
+const gp = d => PH.find(p => p.days.includes(d)) || PH[0];
+
+const SONGS = {
+  raiz:'Roots – Imagine Dragons', sacro:'River – Leon Bridges', solar:'Confident – Demi Lovato',
+  corazon:'What a Wonderful World – L. Armstrong', garganta:'Brave – Sara Bareilles',
+  tojo:'Breathe – Telepopmusik', corona:'Here Comes the Sun – The Beatles'
+};
+
+// ── RUTINAS ──
+const RT = {
+  raiz:{title:'Rutina de Raíz',dur:'17 min',steps:[
+    {name:'Respiración abdominal',reps:'2 minutos',sub:'Activación de tierra',desc:'Siéntate recta. Una mano en abdomen, otra en pecho. Inhala 4, sostén 2, exhala 6.'},
+    {name:'Sentadillas profundas',reps:'3 × 12 reps',sub:'Fuerza de piernas',desc:'Pies al ancho de caderas. Baja hasta muslos paralelos. Empuja desde los talones.'},
+    {name:'Puente de glúteos',reps:'3 × 10 reps',sub:'Activación glútea',desc:'Boca arriba, rodillas flexionadas. Eleva la cadera, sostén 2 seg.'},
+    {name:'Estocadas alternas',reps:'2 × 8 por pierna',sub:'Equilibrio y fuerza',desc:'Paso largo al frente, baja la rodilla trasera sin tocar el piso.'},
+    {name:'Postura del árbol',reps:'45 seg por lado',sub:'Equilibrio y raíz',desc:'De pie, pie en el interior del muslo contrario. Junta palmas.'},
+    {name:'Meditación de raíz',reps:'5 minutos',sub:'Integración',desc:'Visualiza raíces rojas desde tu coxis hacia la tierra.'}
+  ]},
+  sacro:{title:'Rutina Sacra',dur:'22 min',steps:[
+    {name:'Círculos de cadera',reps:'2 min por sentido',sub:'Apertura sacra',desc:'De pie, manos en caderas. Círculos amplios y fluidos.'},
+    {name:'Paloma preparatoria',reps:'90 seg por lado',sub:'Apertura de cadera',desc:'Desde cuatro puntos, desliza la rodilla hacia la mano del mismo lado.'},
+    {name:'Elevaciones de cadera',reps:'3 × 15 reps',sub:'Fuerza y movilidad',desc:'Boca arriba, pies en el piso. Eleva la cadera apretando glúteos.'},
+    {name:'Estiramiento de mariposa',reps:'3 minutos',sub:'Apertura profunda',desc:'Sentada, junta las plantas de los pies. Inclínate suavemente.'},
+    {name:'Movimiento ondulatorio',reps:'3 minutos',sub:'Expresión creativa',desc:'Ojos cerrados. Deja que el cuerpo se mueva libremente.'},
+    {name:'Meditación sacra',reps:'7 minutos',sub:'Integración',desc:'Luz naranja pulsando en tu zona sacra.'}
+  ]},
+  solar:{title:'Solar Plexus Flow',dur:'20 min',steps:[
+    {name:'Respiración de fuego',reps:'2 minutos',sub:'Activación de poder',desc:'Exhala con fuerza contrayendo el abdomen. 1 exhalo por segundo.'},
+    {name:'Plank de antebrazos',reps:'3 × 45 seg',sub:'Fuerza de núcleo',desc:'Antebrazos en el suelo. Cuerpo en línea recta.'},
+    {name:'Mountain climbers',reps:'3 × 30 seg',sub:'Cardio de fuego',desc:'Desde plank, lleva rodillas al pecho alternando rápido.'},
+    {name:'Russian twists',reps:'3 × 20 reps',sub:'Rotación de poder',desc:'Sentada, tronco a 45°. Gira el torso de lado a lado.'},
+    {name:'Core flow continuo',reps:'2 minutos',sub:'Flujo sin pausa',desc:'5 crunches → 5 elevaciones de piernas → 5 bicicleta.'},
+    {name:'Meditación del guerrero',reps:'7 minutos',sub:'Integración',desc:'Llama dorada en el plexo solar.'}
+  ]},
+  corazon:{title:'Rutina de Corazón',dur:'22 min',steps:[
+    {name:'Apertura de pecho suave',reps:'3 minutos',sub:'Apertura inicial',desc:'Entrelaza los dedos detrás. Abre el pecho al exhalar.'},
+    {name:'Cobra suave',reps:'5 × 30 seg',sub:'Extensión de espalda',desc:'Eleva el torso usando la espalda. Cuello largo.'},
+    {name:'Postura del camello',reps:'3 × 20 seg',sub:'Apertura profunda',desc:'Arrodillada, manos a los talones. Empuja cadera adelante.'},
+    {name:'Push-ups con manos abiertas',reps:'3 × 10 reps',sub:'Fuerza de apertura',desc:'Manos más separadas que los hombros. Codos a 45°.'},
+    {name:'Niño con brazos extendidos',reps:'3 minutos',sub:'Rendición amorosa',desc:'Torso hacia adelante, brazos extendidos. Frente al suelo.'},
+    {name:'Meditación de corazón',reps:'7 minutos',sub:'Integración',desc:'Luz verde irradiando desde el centro de tu pecho.'}
+  ]},
+  garganta:{title:'Rutina de Garganta',dur:'20 min',steps:[
+    {name:'Rolls de cuello',reps:'2 minutos suaves',sub:'Liberación cervical',desc:'Oreja al hombro. Rueda lentamente de un lado al otro.'},
+    {name:'Apertura de hombros',reps:'3 minutos',sub:'Hombros libres',desc:'Con toalla, lleva los brazos por encima alternando lados.'},
+    {name:'Postura del pez',reps:'3 × 30 seg',sub:'Apertura de garganta',desc:'Apoya los codos y eleva el pecho arqueando la espalda.'},
+    {name:'Humming — zumbido',reps:'5 minutos',sub:'Vibración de expresión',desc:'Exhala emitiendo "mmmmm" sostenido. Siente la vibración.'},
+    {name:'Estiramiento de trapecio',reps:'90 seg por lado',sub:'Liberación final',desc:'Oreja al hombro. Presión muy suave sobre la sien.'},
+    {name:'Meditación de la voz',reps:'5 minutos',sub:'Integración',desc:'Luz azul en tu garganta. Tu verdad se libera.'}
+  ]},
+  tojo:{title:'Rutina del Tercer Ojo',dur:'22 min',steps:[
+    {name:'Postura del águila',reps:'60 seg por lado',sub:'Enfoque y equilibrio',desc:'Cruza el muslo sobre el otro. Entrelaza los antebrazos.'},
+    {name:'Balanceo en un pie',reps:'90 seg por lado',sub:'Presencia plena',desc:'Eleva un pie del suelo. Cierra los ojos.'},
+    {name:'Niño con frente en suelo',reps:'3 minutos',sub:'Introspección',desc:'El entrecejo toca el suelo, activando el tercer ojo.'},
+    {name:'Piernas en la pared',reps:'5 minutos',sub:'Inversión restaurativa',desc:'Espalda en el suelo, piernas rectas contra la pared.'},
+    {name:'Nadi Shodhana',reps:'5 minutos',sub:'Equilibrio hemisférico',desc:'Respiración alterna: tapa fosa derecha, inhala izquierda.'},
+    {name:'Meditación de visión',reps:'7 minutos',sub:'Activación',desc:'Luz índigo pulsando en tu entrecejo.'}
+  ]},
+  corona:{title:'Rutina de Corona',dur:'30 min',steps:[
+    {name:'Saludo al sol completo',reps:'5 rondas lentas',sub:'Activación total',desc:'Inhala al extender, exhala al doblar. Flujo entre posturas.'},
+    {name:'Sukhasana con elongación',reps:'5 minutos',sub:'Apertura de corona',desc:'Piernas cruzadas. Inhala elongando la columna hacia arriba.'},
+    {name:'Postura del niño profunda',reps:'3 minutos',sub:'Rendición total',desc:'Rodillas abiertas, brazos extendidos. Frente al suelo.'},
+    {name:'Pranayama 4-7-8',reps:'5 minutos',sub:'Sistema nervioso',desc:'Inhala 4, sostén 7, exhala 8.'},
+    {name:'Escaneo corporal',reps:'5 minutos',sub:'Integración somática',desc:'Recorre el cuerpo de pies a coronilla. Suelta tensión.'},
+    {name:'Meditación de corona',reps:'10 minutos',sub:'Cierre del ciclo',desc:'Luz blanca dorada entra por tu coronilla.'}
+  ]},
+};
+
+// ── RITUALES ──
+const RITUALS = [
+  {id:'luna-nueva',name:'Luna Nueva',sub:'Ritual de Siembra',dur:'15 min',c:'#6B6FA0',bg:'rgba(107,111,160,0.12)',status:'upcoming',daysUntil:12,steps:[
+    {n:'Encendido del espacio',i:'Enciende una vela, respira profundo 3 veces.'},
+    {n:'Movimiento de raíz',i:'5 min de sentadillas lentas.'},
+    {n:'Escritura de intención',i:'Escribe una intención para los próximos 28 días.'},
+    {n:'Cierre',i:'"Soy la tierra fértil donde mis intenciones germinan."'}
+  ]},
+  {id:'luna-llena',name:'Luna Llena',sub:'Ritual de Liberación',dur:'20 min',c:'#A8A6C9',bg:'rgba(168,166,201,0.12)',status:'available',steps:[
+    {n:'Movimiento de liberación',i:'8 min de apertura de pecho y torsiones.'},
+    {n:'Gratitud y lista de soltar',i:'3 cosas que agradeces, 1 cosa que sueltas.'},
+    {n:'Ritual simbólico',i:'Rompe el papel donde escribiste lo que sueltas.'},
+    {n:'Meditación',i:'5 min visualizando la luna llena.'}
+  ]},
+  {id:'equinoccio',name:'Equinoccio',sub:'Ritual de Equilibrio',dur:'20 min',c:'#9C7E63',bg:'rgba(156,126,99,0.12)',status:'completed',steps:[
+    {n:'Postura del árbol',i:'6 min de equilibrio alternando lados.'},
+    {n:'Journaling',i:'¿Qué área necesita más luz, cuál más descanso?'},
+    {n:'Nadi Shodhana',i:'5 min de respiración alterna.'},
+    {n:'Cierre',i:'"Honro mi luz y mi sombra."'}
+  ]},
+];
+
+// ── NAVEGACIÓN ──
+function NI({ n, on }){
+  const c = on ? '#E0AD66' : '#8B7FA8';
+  if(n === 'home') return html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 12L12 3L21 12V21H15V15H9V21H3V12Z" stroke=${c} stroke-width="1.7" stroke-linejoin="round"/></svg>`;
+  if(n === 'oracle') return html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke=${c} stroke-width="1.7"/><line x1="12" y1="2" x2="12" y2="5" stroke=${c} stroke-width="1.7" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke=${c} stroke-width="1.7" stroke-linecap="round"/><line x1="2" y1="12" x2="5" y2="12" stroke=${c} stroke-width="1.7" stroke-linecap="round"/><line x1="19" y1="12" x2="22" y2="12" stroke=${c} stroke-width="1.7" stroke-linecap="round"/></svg>`;
+  return html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="3" rx="1.5" stroke=${c} stroke-width="1.5"/><rect x="3" y="10.5" width="13" height="3" rx="1.5" stroke=${c} stroke-width="1.5"/><rect x="3" y="16" width="9" height="3" rx="1.5" stroke=${c} stroke-width="1.5"/></svg>`;
+}
+function Nav({ active, go, isAdmin, openAdmin }){
+  return html`<div class="nv">
+    ${[['home','Inicio'],['oracle','Oráculo'],['routines','Rutinas']].map(([id,lbl]) =>
+      html`<div key=${id} class=${'tb' + (active === id ? ' on' : '')} onClick=${() => go(id)}>
+        <${NI} n=${id} on=${active === id}/><span class="tl">${lbl}</span>
+      </div>`
+    )}
+    ${isAdmin && html`<div class="tb" onClick=${openAdmin}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="#E0AD66" stroke-width="1.7"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#E0AD66" stroke-width="1.7" stroke-linecap="round"/><circle cx="18.5" cy="7" r="2.5" fill="#E0AD66"/><path d="M17 5.5l.8.8 1.7-1.8" stroke="#1E1530" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="tl" style=${{ color:'#E0AD66' }}>Admin</span>
+    </div>`}
+  </div>`;
+}
+function BackBtn({ onClick, label }){
+  return html`<button onClick=${onClick} style=${{ background:'none', border:'none', color:'#C7BCDA', cursor:'pointer', display:'flex', alignItems:'center', gap:5, fontSize:13, padding:0, marginBottom:16, fontFamily:'Inter' }}>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="#C7BCDA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    ${label || 'Volver'}
+  </button>`;
+}
+
+// ── LOGIN ──
+function EmailLogin({ onLogin }){
+  const [email, sEmail] = useState('');
+  const [code, sCode] = useState('');
+  const [step, sStep] = useState(1);
+  const [err, sErr] = useState('');
+  const [shake, sShake] = useState(false);
+  function nextStep(){
+    const e = email.trim().toLowerCase();
+    if(!e.includes('@')){ sErr('Ingresa un correo válido.'); return; }
+    sErr('');
+    if(e === ADMIN){ doLogin(e, ''); } else { sStep(2); }
+  }
+  function doLogin(e, c){
+    if(verifyAccess(e, c)){ LS.s('email', e); onLogin(e); }
+    else { sErr('Código incorrecto. Verifica el código que te enviaron.'); sShake(true); setTimeout(() => sShake(false), 600); }
+  }
+  return html`<div style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'40px 28px', background:'radial-gradient(ellipse at 50% 20%,#2D1F45,#1E1530)', animation:'pp 0.4s cubic-bezier(.34,1.56,.64,1) both' }}>
+    <div style=${{ textAlign:'center', width:'100%' }}>
+      <div style=${{ fontSize:52, marginBottom:16, animation:'br 3s ease-in-out infinite' }}>🌸</div>
+      <h1 class="fr" style=${{ color:'#F3EFE6', fontSize:24, fontWeight:600, marginBottom:6 }}>Bienvenida a ChakraFit</h1>
+      <p style=${{ color:'#8B7FA8', fontSize:13, marginBottom:28, lineHeight:1.6 }}>Comunidad privada.<br/>Ingresa tu correo para continuar.</p>
+      ${step === 1 && html`<div style=${{ animation:shake ? 'sh 0.4s ease' : 'none', marginBottom:12 }}>
+        <input class="ip" type="email" placeholder="tu@correo.com" value=${email}
+          onInput=${e => { sEmail(e.target.value); sErr(''); }}
+          onKeyDown=${e => { if(e.key === 'Enter') nextStep(); }}
+          style=${{ textAlign:'center', fontSize:15 }}/>
+      </div>`}
+      ${step === 2 && html`<div style=${{ marginBottom:4 }}>
+        <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:12, padding:'8px 12px', background:'rgba(255,255,255,0.05)', borderRadius:12 }}>
+          <span style=${{ fontSize:13, color:'#8B7FA8', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>${email}</span>
+          <button onClick=${() => { sStep(1); sErr(''); sCode(''); }} style=${{ background:'none', border:'none', color:'#E0AD66', fontSize:12, cursor:'pointer', fontFamily:'Inter', flexShrink:0 }}>Cambiar</button>
+        </div>
+        <p style=${{ color:'#C7BCDA', fontSize:12, marginBottom:10, textAlign:'left' }}>Ingresa el código de acceso que te compartió la administradora:</p>
+        <div style=${{ animation:shake ? 'sh 0.4s ease' : 'none', marginBottom:12 }}>
+          <input class="ip" placeholder="XXXX-XXXX" value=${code}
+            onInput=${e => { sCode(e.target.value.toUpperCase()); sErr(''); }}
+            onKeyDown=${e => { if(e.key === 'Enter') doLogin(email.trim().toLowerCase(), code); }}
+            style=${{ textAlign:'center', fontSize:18, letterSpacing:'4px', fontFamily:'Space Grotesk' }}
+            maxLength="9"/>
+        </div>
+      </div>`}
+      ${err && html`<div style=${{ background:'rgba(196,75,75,0.12)', border:'1px solid rgba(196,75,75,0.3)', borderRadius:12, padding:'10px 14px', marginBottom:12 }}>
+        <p style=${{ color:'#E07070', fontSize:13 }}>🔒 ${err}</p>
+      </div>`}
+      <button class="bg" onClick=${step === 1 ? nextStep : () => doLogin(email.trim().toLowerCase(), code)} style=${{ marginBottom:16 }}>
+        ${step === 1 ? 'Continuar →' : 'Ingresar →'}
+      </button>
+      <p style=${{ color:'#4A3F5C', fontSize:11, lineHeight:1.6 }}>¿Sin código? Solicítalo a la<br/>administradora del programa.</p>
+    </div>
+  </div>`;
+}
+
+// ── PANEL ADMIN ──
+function AdminPanel({ onBack, onLogout }){
+  const [invited, sInvited] = useState(getInvited);
+  const [newEmail, sNew] = useState('');
+  const [err, sErr] = useState('');
+  const [ok, sOk] = useState('');
+  const [copied, sCopied] = useState('');
+  const [confirmDel, sCDel] = useState(null);
+  function add(){
+    const e = newEmail.trim().toLowerCase();
+    if(!e.includes('@')){ sErr('Correo inválido.'); return; }
+    if(e === ADMIN){ sErr('Ese es tu correo de admin.'); return; }
+    addInvited(e); sInvited(getInvited()); sNew(''); sErr('');
+    sOk('✓ Código generado para ' + e); setTimeout(() => sOk(''), 3000);
+  }
+  function revoke(e){ removeInvited(e); sInvited(getInvited()); sCDel(null); sOk('Acceso revocado.'); setTimeout(() => sOk(''), 2000); }
+  function copyCode(e, code){
+    const msg = `Hola! Tu código de acceso para ChakraFit:\n\nCorreo: ${e}\nCódigo: ${code}\n\nDescarga la app e ingresa con estos datos. ✨`;
+    if(navigator.clipboard){ navigator.clipboard.writeText(msg).then(() => { sCopied(e); setTimeout(() => sCopied(''), 2000); }); }
+    else { const ta = document.createElement('textarea'); ta.value = msg; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); sCopied(e); setTimeout(() => sCopied(''), 2000); }
+  }
+  return html`<div class="sc" style=${{ animation:'fd 0.25s ease-out both', padding:'44px 16px 0' }}>
+    <${BackBtn} onClick=${onBack} label="Volver a inicio"/>
+    <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:18 }}>
+      <div style=${{ width:46, height:46, borderRadius:14, background:'rgba(224,173,102,0.15)', border:'1.5px solid rgba(224,173,102,0.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>👑</div>
+      <div><p style=${{ color:'#E0AD66', fontSize:10, fontWeight:600, letterSpacing:'1.5px', marginBottom:2 }}>PANEL ADMIN</p><p style=${{ color:'#F3EFE6', fontSize:14, fontWeight:600 }}>Control de Accesos</p></div>
+    </div>
+    <div style=${{ background:'rgba(224,173,102,0.08)', border:'1px solid rgba(224,173,102,0.2)', borderRadius:14, padding:'12px 14px', marginBottom:14 }}>
+      <p style=${{ color:'#E0AD66', fontSize:10, fontWeight:600, letterSpacing:'1.2px', marginBottom:6 }}>✨ CÓMO FUNCIONA</p>
+      <p style=${{ color:'#C7BCDA', fontSize:12, lineHeight:1.6 }}>Agrega el correo de cada persona → se genera su código único → copia y envíaselo. El código funciona en <strong style=${{ color:'#F3EFE6' }}>cualquier dispositivo</strong>.</p>
+    </div>
+    <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:14 }}>
+      <div class="gl" style=${{ padding:'12px', textAlign:'center' }}><div class="mn" style=${{ color:'#E0AD66', fontSize:26, fontWeight:700 }}>${invited.length}</div><div style=${{ color:'#8B7FA8', fontSize:11, marginTop:2 }}>invitadas activas</div></div>
+      <div class="gl" style=${{ padding:'12px', textAlign:'center' }}><div style=${{ fontSize:20, marginBottom:4 }}>🔑</div><div style=${{ color:'#8B7FA8', fontSize:11 }}>códigos seguros</div></div>
+    </div>
+    <div class="gl" style=${{ padding:'14px', marginBottom:14 }}>
+      <p style=${{ color:'#C7BCDA', fontSize:11, fontWeight:600, letterSpacing:'1.2px', marginBottom:10 }}>AGREGAR ACCESO</p>
+      <div style=${{ display:'flex', gap:8, marginBottom:8 }}>
+        <input class="ip" type="email" placeholder="correo@ejemplo.com" value=${newEmail}
+          onInput=${e => { sNew(e.target.value); sErr(''); sOk(''); }}
+          onKeyDown=${e => { if(e.key === 'Enter') add(); }}
+          style=${{ flex:1, fontSize:13, padding:'10px 12px' }}/>
+        <button onClick=${add} style=${{ background:'#E0AD66', border:'none', borderRadius:12, color:'#2A2235', fontWeight:700, fontSize:16, padding:'0 16px', cursor:'pointer', flexShrink:0 }}>+</button>
+      </div>
+      ${err && html`<p style=${{ color:'#E07070', fontSize:12 }}>${err}</p>`}
+      ${ok && html`<p style=${{ color:'#5A9E6F', fontSize:12, fontWeight:600 }}>${ok}</p>`}
+    </div>
+    <p style=${{ color:'#8B7FA8', fontSize:10, fontWeight:600, letterSpacing:'1.5px', marginBottom:8 }}>ADMINISTRADORA</p>
+    <div class="gl" style=${{ padding:'11px 14px', marginBottom:14, border:'1px solid rgba(224,173,102,0.3)', display:'flex', alignItems:'center', gap:10 }}>
+      <span style=${{ fontSize:18 }}>👑</span>
+      <div style=${{ flex:1, minWidth:0 }}><p style=${{ color:'#E0AD66', fontSize:12, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>${ADMIN}</p><p style=${{ color:'#6E6480', fontSize:11 }}>Acceso directo · sin código</p></div>
+    </div>
+    ${invited.length > 0 && html`<p style=${{ color:'#8B7FA8', fontSize:10, fontWeight:600, letterSpacing:'1.5px', marginBottom:8 }}>ACCESOS GENERADOS (${invited.length})</p>`}
+    ${invited.map(e => {
+      const code = genCode(e), isCopied = copied === e;
+      return html`<div key=${e} class="gl" style=${{ padding:'12px 14px', marginBottom:10 }}>
+        <div style=${{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+          <div style=${{ width:30, height:30, borderRadius:'50%', background:'rgba(90,158,111,0.15)', border:'1.5px solid rgba(90,158,111,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, flexShrink:0 }}>✓</div>
+          <p style=${{ color:'#C7BCDA', fontSize:12, fontWeight:500, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>${e}</p>
+          ${confirmDel === e
+            ? html`<div style=${{ display:'flex', gap:5, flexShrink:0 }}>
+                <button onClick=${() => revoke(e)} style=${{ background:'rgba(196,75,75,0.2)', border:'1px solid rgba(196,75,75,0.4)', borderRadius:20, color:'#E07070', fontSize:10, padding:'3px 8px', cursor:'pointer', fontFamily:'Inter', fontWeight:600 }}>Revocar</button>
+                <button onClick=${() => sCDel(null)} style=${{ background:'none', border:'1px solid rgba(255,255,255,0.1)', borderRadius:20, color:'#6E6480', fontSize:10, padding:'3px 8px', cursor:'pointer', fontFamily:'Inter' }}>No</button>
+              </div>`
+            : html`<button onClick=${() => sCDel(e)} style=${{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:20, color:'#6E6480', fontSize:10, padding:'4px 8px', cursor:'pointer', fontFamily:'Inter', flexShrink:0 }}>Revocar</button>`}
+        </div>
+        <div style=${{ display:'flex', alignItems:'center', gap:8, background:'rgba(255,255,255,0.05)', borderRadius:10, padding:'8px 12px' }}>
+          <span class="mn" style=${{ color:'#E0AD66', fontSize:16, fontWeight:700, letterSpacing:'3px', flex:1 }}>${code}</span>
+          <button onClick=${() => copyCode(e, code)} style=${{ background:isCopied ? 'rgba(90,158,111,0.2)' : 'rgba(224,173,102,0.15)', border:'1px solid ' + (isCopied ? 'rgba(90,158,111,0.4)' : 'rgba(224,173,102,0.3)'), borderRadius:20, color:isCopied ? '#5A9E6F' : '#E0AD66', fontSize:11, padding:'5px 12px', cursor:'pointer', fontFamily:'Inter', fontWeight:600, flexShrink:0, transition:'all 0.2s' }}>
+            ${isCopied ? '✓ Copiado' : '📋 Copiar'}
+          </button>
+        </div>
+      </div>`;
+    })}
+    ${invited.length === 0 && html`<div style=${{ textAlign:'center', padding:'24px', color:'#4A3F5C', fontSize:13 }}>
+      <div style=${{ fontSize:32, marginBottom:8 }}>🌱</div>Aún no has invitado a nadie.<br/>Agrega un correo arriba.
+    </div>`}
+    <div style=${{ borderTop:'1px solid rgba(255,255,255,0.07)', marginTop:18, paddingTop:14, marginBottom:4 }}>
+      <button onClick=${onLogout} style=${{ width:'100%', padding:'12px', borderRadius:50, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#6E6480', fontSize:13, cursor:'pointer', fontFamily:'Inter' }}>Cerrar sesión</button>
+    </div>
+  </div>`;
+}
+
+// ── SETUP (nombre) ──
+function Setup({ onSave }){
+  const [v, sv] = useState('');
+  return html`<div style=${{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'36px 28px', background:'radial-gradient(ellipse at 50% 30%,#2D1F45,#1E1530)', animation:'pp 0.45s cubic-bezier(.34,1.56,.64,1) both' }}>
+    <div style=${{ width:'100%', textAlign:'center' }}>
+      <div style=${{ fontSize:52, marginBottom:18 }}>🌱</div>
+      <h1 class="fr" style=${{ color:'#F3EFE6', fontSize:26, fontWeight:600, marginBottom:8 }}>¡Acceso confirmado!</h1>
+      <p style=${{ color:'#8B7FA8', fontSize:14, marginBottom:30, lineHeight:1.6 }}>Tu viaje de 30 días comienza hoy.<br/>¿Cómo te llamas?</p>
+      <input class="ip" placeholder="Tu nombre..." value=${v} onInput=${e => sv(e.target.value)} style=${{ marginBottom:14, textAlign:'center' }} onKeyDown=${e => { if(e.key === 'Enter' && v.trim()) onSave(v.trim()); }}/>
+      <button class="bg" onClick=${() => v.trim() && onSave(v.trim())} style=${{ opacity:v.trim() ? 1 : 0.4 }}>Comenzar mi viaje ✨</button>
+    </div>
+  </div>`;
+}
+
+// ── INICIO ──
+function Home({ st, go, editName }){
+  const { name, day, streak, lc, today } = st, p = gp(day), dd = DD[day-1], r = RT[p.id], done = lc === today;
+  return html`<div class="sc" style=${{ animation:'fd 0.25s ease-out both', padding:'44px 16px 0' }}>
+    <div style=${{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
+      <div>
+        <div style=${{ display:'flex', alignItems:'center', gap:7, marginBottom:4 }}><p style=${{ color:'#C7BCDA', fontSize:13 }}>Buenos días, ${name}</p><button onClick=${editName} style=${{ background:'none', border:'1px solid rgba(255,255,255,0.1)', color:'#6E6480', fontSize:11, padding:'2px 6px', borderRadius:8, cursor:'pointer' }}>✏️</button></div>
+        <h1 class="fr" style=${{ color:'#F3EFE6', fontSize:24, fontWeight:600, lineHeight:1.1 }}>Tu energía hoy</h1>
+      </div>
+      <div style=${{ textAlign:'center' }}>
+        <div style=${{ width:54, height:54, borderRadius:'50%', background:streak > 0 ? 'radial-gradient(circle at 40% 35%,#FF6B35,#D9320A)' : 'rgba(255,255,255,0.07)', border:streak > 0 ? '2px solid rgba(255,107,53,0.4)' : '2px solid rgba(255,255,255,0.1)', boxShadow:streak > 0 ? '0 0 18px rgba(217,80,10,0.5)' : 'none', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+          ${streak > 0 ? html`<span style=${{ fontSize:14, display:'block', lineHeight:1, animation:'fl 1.8s ease-in-out infinite', transformOrigin:'bottom center' }}>🔥</span>` : html`<span style=${{ fontSize:18, color:'#6E6480' }}>○</span>`}
+          <span class="mn" style=${{ fontSize:13, fontWeight:700, color:'#FFF8F0', lineHeight:1 }}>${streak}</span>
+        </div>
+        <p style=${{ color:'#8B7FA8', fontSize:9, marginTop:4 }}>días seguidos</p>
+      </div>
+    </div>
+    <div class="iv" style=${{ padding:'16px', marginBottom:10, textAlign:'center' }}>
+      <p style=${{ color:'#D9AE3F', fontSize:10, fontWeight:600, letterSpacing:'2px', marginBottom:6 }}>${p.name.toUpperCase()}</p>
+      <p class="fr" style=${{ color:'#2A2235', fontSize:16, fontStyle:'italic', fontWeight:600, lineHeight:1.35, marginBottom:14 }}>"${dd.msg}"</p>
+      <div style=${{ display:'flex', gap:8 }}>
+        <button onClick=${() => go('routine-summary', p.id)} style=${{ flex:1, padding:'11px', borderRadius:14, background:'#2A2235', color:'#FBF7F0', border:'none', fontWeight:600, fontSize:13, cursor:'pointer' }}>Ver rutina</button>
+        <button onClick=${() => go('oracle')} style=${{ flex:1, padding:'11px', borderRadius:14, background:'transparent', color:'#2A2235', border:'1.5px solid #D0C8B8', fontWeight:600, fontSize:13, cursor:'pointer' }}>Oráculo</button>
+      </div>
+    </div>
+    <div style=${{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+      <div class="iv" style=${{ padding:'12px 10px', textAlign:'center' }}><div style=${{ fontSize:22, marginBottom:4, animation:'ef 2.5s ease-in-out infinite' }}>${p.el}</div><div class="mn" style=${{ fontSize:17, fontWeight:700, color:'#2A2235' }}>Día ${day}</div><div style=${{ fontSize:10, color:'#6E6480' }}>de 30</div></div>
+      <div class="iv" style=${{ padding:'10px', textAlign:'center' }}><div style=${{ fontSize:18, marginBottom:4 }}>🎵</div><div style=${{ fontSize:9, fontWeight:600, color:'#2A2235', lineHeight:1.4 }}>${SONGS[p.id]}</div></div>
+    </div>
+    <div class="iv" style=${{ padding:'12px 14px', display:'flex', alignItems:'center', gap:12, cursor:'pointer', marginBottom:10 }} onClick=${() => go('routine-summary', p.id)}>
+      <div style=${{ width:46, height:46, borderRadius:'50%', background:p.cl, border:'2px solid ' + p.cb, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:22, animation:'ef 2.5s ease-in-out infinite' }}>${p.el}</div>
+      <div style=${{ flex:1 }}><div style=${{ color:'#6E6480', fontSize:10, fontWeight:600, letterSpacing:'1px', marginBottom:2 }}>${p.en.toUpperCase()}</div><div style=${{ color:'#2A2235', fontSize:13, fontWeight:600, marginBottom:2 }}>${r.title}</div><div style=${{ color:p.c, fontSize:11 }}>${r.dur} · ${r.steps.length} ejercicios</div></div>
+      ${done ? html`<span style=${{ background:'rgba(90,158,111,0.15)', color:'#5A9E6F', fontSize:10, fontWeight:600, padding:'4px 8px', borderRadius:20 }}>✓ Hecho</span>` : html`<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18L15 12L9 6" stroke="#C7BCDA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
+    </div>
+    <div class="gl" style=${{ padding:'12px 14px', display:'flex', alignItems:'center', gap:12, cursor:'pointer', marginBottom:10 }} onClick=${() => go('rituals')}>
+      <div style=${{ width:44, height:44, borderRadius:'50%', background:'rgba(168,166,201,0.18)', border:'1.5px solid rgba(168,166,201,0.5)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:22 }}>🌕</div>
+      <div style=${{ flex:1 }}><p style=${{ color:'#F3EFE6', fontSize:13, fontWeight:600, marginBottom:2 }}>✨ Disponible: Luna Llena</p><p style=${{ color:'#C7BCDA', fontSize:11 }}>Ritual de Liberación · 20 min</p></div>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18L15 12L9 6" stroke="#8B7FA8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+  </div>`;
+}
+
+// ── ORÁCULO ──
+function Oracle({ day }){
+  const curPh = gp(day);
+  const [selPh, sSelPh] = useState(curPh);
+  const dd = DD[selPh.days[0]-1], p = selPh, pct = Math.round((day-1)/30*100);
+  return html`<div class="sc" style=${{ animation:'fd 0.25s ease-out both', padding:'44px 16px 0' }}>
+    <div style=${{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+      <div><p style=${{ color:'#C7BCDA', fontSize:11, fontWeight:600, letterSpacing:'1.5px', marginBottom:4 }}>ORÁCULO · 30 DÍAS</p><h1 class="fr" style=${{ color:'#F3EFE6', fontSize:22, fontWeight:600, lineHeight:1.2 }}>Activación de los<br/>7 chakras</h1></div>
+      <div style=${{ textAlign:'right' }}><span class="mn" style=${{ color:curPh.c, fontSize:22, fontWeight:700, display:'block' }}>Día ${day}</span><span style=${{ color:'#8B7FA8', fontSize:11 }}>de 30</span></div>
+    </div>
+    <div style=${{ height:5, background:'rgba(255,255,255,0.08)', borderRadius:3, marginBottom:16, overflow:'hidden' }}><div style=${{ height:'100%', width:pct + '%', background:'linear-gradient(90deg,#C44B4B,#D9AE3F,#A87DC8)', borderRadius:3 }}/></div>
+    <div style=${{ display:'flex', justifyContent:'center', marginBottom:16 }}>
+      <div style=${{ position:'relative', width:110, height:110, animation:'br 3s ease-in-out infinite' }}>
+        <svg width="110" height="110" viewBox="0 0 110 110"><circle cx="55" cy="55" r="48" fill=${p.cl} stroke=${p.c} stroke-width="1.5"/></svg>
+        <div style=${{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2 }}><span style=${{ fontSize:36 }}>${p.el}</span><span style=${{ color:p.c, fontSize:9, fontWeight:600, letterSpacing:'1.5px' }}>${p.en.toUpperCase()}</span></div>
+      </div>
+    </div>
+    <div class="gl" style=${{ padding:'14px', marginBottom:14, border:'1px solid ' + p.cb }}>
+      <span style=${{ background:p.cl, color:p.c, border:'1px solid ' + p.cb, fontSize:10, fontWeight:600, padding:'3px 10px', borderRadius:20, display:'inline-block', marginBottom:10 }}>${p.name.toUpperCase()}</span>
+      <p class="fr" style=${{ color:'#F3EFE6', fontSize:15, fontStyle:'italic', lineHeight:1.65, marginBottom:8 }}>"${dd.msg}"</p>
+      <p style=${{ color:'#C7BCDA', fontSize:13, lineHeight:1.6 }}>${p.om}</p>
+    </div>
+    <p style=${{ color:'#8B7FA8', fontSize:10, fontWeight:600, letterSpacing:'1.8px', marginBottom:10 }}>MICRO-RITUALES</p>
+    ${[['m','MAÑANA',p.c],['md','MEDIODÍA','#DD8A3E'],['n','NOCHE','#9D74BE']].map(([k,lbl,tc]) =>
+      html`<div key=${k} class="iv" style=${{ padding:'12px 14px', marginBottom:8 }}>
+        <div style=${{ display:'flex', justifyContent:'space-between', marginBottom:5 }}><span style=${{ color:tc, fontSize:10, fontWeight:600, letterSpacing:'1.2px' }}>${lbl}</span><span style=${{ color:'#6E6480', fontSize:12 }}>${dd[k].d}</span></div>
+        <p style=${{ color:'#2A2235', fontSize:13, lineHeight:1.5 }}>${dd[k].txt}</p>
+      </div>`
+    )}
+    <p style=${{ color:'#8B7FA8', fontSize:10, fontWeight:600, letterSpacing:'1.5px', marginBottom:10, marginTop:10 }}>FASES DEL VIAJE</p>
+    <div style=${{ position:'relative', marginBottom:8 }}>
+      <div style=${{ position:'absolute', left:19, top:0, bottom:0, width:2, background:'rgba(255,255,255,0.06)' }}/>
+      ${PH.map((ph, i) => {
+        const past = ph.days[ph.days.length-1] < day, sel = ph.id === selPh.id, fut = ph.days[0] > day;
+        return html`<div key=${ph.id} style=${{ display:'flex', gap:12, paddingBottom:i < 6 ? 12 : 0, position:'relative', zIndex:1, cursor:'pointer' }} onClick=${() => sSelPh(ph)}>
+          <div style=${{ width:40, height:40, borderRadius:'50%', background:sel ? ph.c : (past ? ph.c + '30' : 'rgba(255,255,255,0.04)'), border:'2px solid ' + (sel || past ? ph.c : 'rgba(255,255,255,0.08)'), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:past && !sel ? 13 : 20, boxShadow:sel ? '0 0 14px ' + ph.c + '60' : 'none' }}>
+            ${(past && !sel) ? html`<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6L4.5 8.5L10 3" stroke=${ph.c} stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>` : ph.el}
+          </div>
+          <div style=${{ flex:1, paddingTop:6 }}>
+            <p style=${{ color:fut && !sel ? 'rgba(255,255,255,0.12)' : (sel ? ph.c : '#8B7FA8'), fontSize:10, fontWeight:600, marginBottom:2 }}>DÍAS ${ph.days[0]}–${ph.days[ph.days.length-1]}</p>
+            <p style=${{ color:fut && !sel ? 'rgba(255,255,255,0.15)' : (sel ? '#F3EFE6' : past ? '#C7BCDA' : '#4A3F5C'), fontSize:13, fontWeight:sel ? 600 : 400 }}>${ph.name} · ${ph.theme}</p>
+          </div>
+          ${sel && html`<div style=${{ width:6, height:6, borderRadius:'50%', background:ph.c, alignSelf:'center', flexShrink:0 }}/>`}
+        </div>`;
+      })}
+    </div>
+  </div>`;
+}
+
+// ── LISTA DE RUTINAS ──
+function RoutineList({ day, go }){
+  const tp = gp(day), pct = Math.round((day-1)/30*100);
+  return html`<div class="sc" style=${{ animation:'fd 0.25s ease-out both', padding:'44px 16px 0' }}>
+    <p style=${{ color:'#C7BCDA', fontSize:11, fontWeight:600, letterSpacing:'1.5px', marginBottom:5 }}>CAMINO DE 30 DÍAS</p>
+    <h1 class="fr" style=${{ color:'#F3EFE6', fontSize:22, fontWeight:600, marginBottom:12 }}>7 Rutinas, 7 Chakras</h1>
+    <div style=${{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:16, padding:'12px 14px', marginBottom:14 }}>
+      <div style=${{ display:'flex', justifyContent:'space-between', marginBottom:7 }}><span style=${{ color:'#8B7FA8', fontSize:11, fontWeight:600 }}>PROGRESO</span><span class="mn" style=${{ color:tp.c, fontSize:13, fontWeight:700 }}>Día ${day}/30</span></div>
+      <div style=${{ height:8, background:'rgba(255,255,255,0.08)', borderRadius:4, overflow:'hidden' }}><div style=${{ height:'100%', width:pct + '%', background:'linear-gradient(90deg,#C44B4B,#E07A3A,#D9AE3F,#5A9E6F,#4A90C4,#7B68C8,#A87DC8)', borderRadius:4 }}/></div>
+    </div>
+    ${PH.map(ph => {
+      const past = ph.days[ph.days.length-1] < day, act = ph.id === tp.id, fut = ph.days[0] > day, r = RT[ph.id];
+      return html`<div key=${ph.id} style=${{ display:'flex', gap:12, marginBottom:10, cursor:'pointer' }} onClick=${() => go('routine-summary', ph.id)}>
+        <div style=${{ width:42, height:42, borderRadius:'50%', background:act ? ph.c : (past ? ph.c + '25' : 'rgba(255,255,255,0.04)'), border:'2px solid ' + (act || past ? ph.c : 'rgba(255,255,255,0.1)'), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:past ? 14 : 20 }}>
+          ${past ? html`<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5L5 9.5L11 3" stroke=${ph.c} stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>` : ph.el}
+        </div>
+        <div style=${{ flex:1, background:act ? ph.cl : 'rgba(255,255,255,0.03)', border:'1px solid ' + (act ? ph.cb : 'rgba(255,255,255,0.06)'), borderRadius:14, padding:'10px 12px' }}>
+          <div style=${{ display:'flex', justifyContent:'space-between', marginBottom:3 }}><span style=${{ color:fut ? 'rgba(255,255,255,0.15)' : (act ? ph.c : '#8B7FA8'), fontSize:10, fontWeight:600 }}>DÍAS ${ph.days[0]}–${ph.days[ph.days.length-1]}</span><span style=${{ color:past ? '#5A9E6F' : (act ? ph.c : 'rgba(255,255,255,0.15)'), fontSize:11, fontWeight:600 }}>${past ? '✓' : r.dur}</span></div>
+          <p style=${{ color:fut ? 'rgba(255,255,255,0.18)' : (act ? '#F3EFE6' : past ? '#C7BCDA' : '#5A4F6A'), fontSize:13, fontWeight:act ? 600 : 400 }}>${r.title}</p>
+          ${act && html`<p style=${{ color:'#C7BCDA', fontSize:11, fontStyle:'italic', marginTop:4 }}>"${ph.int}"</p>`}
+        </div>
+      </div>`;
+    })}
+  </div>`;
+}
+
+// ── RESUMEN DE RUTINA ──
+function RoutineSummary({ phaseId, day, back, openEx }){
+  const ph = PH.find(p => p.id === phaseId) || gp(day), r = RT[ph.id];
+  return html`<div class="sc" style=${{ animation:'fd 0.25s ease-out both', padding:'44px 16px 0' }}>
+    <${BackBtn} onClick=${back} label="Rutinas"/>
+    <div style=${{ display:'flex', gap:10, alignItems:'center', marginBottom:10 }}>
+      <span style=${{ fontSize:28 }}>${ph.el}</span>
+      <div><span style=${{ background:ph.cl, color:ph.c, fontSize:10, fontWeight:600, padding:'3px 10px', borderRadius:20, border:'1px solid ' + ph.cb }}>${ph.name.toUpperCase()}</span><p style=${{ color:'#C7BCDA', fontSize:11, marginTop:4 }}>${r.dur} · ${r.steps.length} ejercicios</p></div>
+    </div>
+    <h1 class="fr" style=${{ color:'#F3EFE6', fontSize:22, fontWeight:600, marginBottom:12 }}>${r.title}</h1>
+    <div style=${{ background:ph.cl, border:'1px solid ' + ph.cb, borderRadius:14, padding:'12px 14px', marginBottom:16 }}>
+      <p style=${{ color:ph.c, fontSize:10, fontWeight:600, letterSpacing:'1.5px', marginBottom:5 }}>INTENCIÓN</p>
+      <p class="fr" style=${{ color:'#F3EFE6', fontSize:14, fontStyle:'italic', lineHeight:1.5 }}>"${ph.int}"</p>
+    </div>
+    <div style=${{ display:'flex', flexDirection:'column', gap:8, marginBottom:18 }}>
+      ${r.steps.map((s, i) => html`<div key=${i} class="iv" style=${{ padding:'10px 12px', display:'flex', alignItems:'center', gap:12, cursor:'pointer' }} onClick=${() => openEx(i)}>
+        <div style=${{ width:54, height:54, flexShrink:0 }}><${Img} name=${s.name} color=${ph.c}/></div>
+        <div style=${{ flex:1, minWidth:0 }}><p style=${{ color:'#2A2235', fontSize:13, fontWeight:600, marginBottom:2 }}>${s.name}</p><p style=${{ color:ph.c, fontSize:11 }}>${s.reps}</p></div>
+        <div style=${{ width:26, height:26, borderRadius:'50%', background:ph.cl, border:'1.5px solid ' + ph.cb, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><span style=${{ color:ph.c, fontSize:11, fontWeight:700 }}>${i+1}</span></div>
+      </div>`)}
+    </div>
+    <button class="bg" onClick=${() => openEx(0)}>Comenzar rutina →</button>
+  </div>`;
+}
+
+// ── AUDIO DE MEDITACIÓN (Web Audio API) ──
+const CHAKRA_AUDIO = {
+  raiz:     { hz:396, mantra:'LAM', label:'396 Hz · Liberación del miedo',       color:'#C44B4B' },
+  sacro:    { hz:417, mantra:'VAM', label:'417 Hz · Creatividad y flujo',         color:'#E07A3A' },
+  solar:    { hz:528, mantra:'RAM', label:'528 Hz · Transformación y poder',      color:'#D9AE3F' },
+  corazon:  { hz:639, mantra:'YAM', label:'639 Hz · Amor y conexión',             color:'#5A9E6F' },
+  garganta: { hz:741, mantra:'HAM', label:'741 Hz · Expresión y verdad',          color:'#4A90C4' },
+  tojo:     { hz:852, mantra:'AUM', label:'852 Hz · Intuición y claridad',        color:'#7B68C8' },
+  corona:   { hz:963, mantra:'OM',  label:'963 Hz · Consciencia pura',            color:'#A87DC8' },
+};
+
+function isMeditacion(name){
+  return /meditaci|pranayama|escaneo|humming|zumbido|nadi|integrac/i.test(name);
+}
+
+function MeditationAudio({ phaseId, stepName, color }){
+  const info = CHAKRA_AUDIO[phaseId] || CHAKRA_AUDIO.corona;
+  const [playing, sPlaying] = useState(false);
+  const [vol, sVol] = useState(0.4);
+  const ctx = useRef(null);
+  const nodes = useRef({});
+
+  function startAudio(){
+    if(!ctx.current) ctx.current = new (window.AudioContext || window.webkitAudioContext)();
+    const ac = ctx.current;
+    if(ac.state === 'suspended') ac.resume();
+
+    // Ganancia master con fade in suave
+    const master = ac.createGain();
+    master.gain.setValueAtTime(0, ac.currentTime);
+    master.gain.linearRampToValueAtTime(vol, ac.currentTime + 2);
+    master.connect(ac.destination);
+
+    // Tono principal (frecuencia del chakra) — onda sinusoidal pura
+    const osc1 = ac.createOscillator();
+    osc1.type = 'sine';
+    osc1.frequency.value = info.hz;
+    const g1 = ac.createGain(); g1.gain.value = 0.6;
+    osc1.connect(g1); g1.connect(master);
+    osc1.start();
+
+    // Beat binaural: canal izquierdo + derecho con 6 Hz de diferencia (theta)
+    const merger = ac.createChannelMerger(2);
+    const oscL = ac.createOscillator(), oscR = ac.createOscillator();
+    oscL.type = 'sine'; oscL.frequency.value = info.hz;
+    oscR.type = 'sine'; oscR.frequency.value = info.hz + 6;
+    const gL = ac.createGain(), gR = ac.createGain();
+    gL.gain.value = 0.25; gR.gain.value = 0.25;
+    oscL.connect(gL); gL.connect(merger, 0, 0);
+    oscR.connect(gR); gR.connect(merger, 0, 1);
+    merger.connect(master);
+    oscL.start(); oscR.start();
+
+    // Armónico suave (octava) para calidez
+    const osc2 = ac.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.value = info.hz / 2;
+    const g2 = ac.createGain(); g2.gain.value = 0.15;
+    osc2.connect(g2); g2.connect(master);
+    osc2.start();
+
+    nodes.current = { master, osc1, oscL, oscR, osc2 };
+  }
+
+  function stopAudio(){
+    const { master, osc1, oscL, oscR, osc2 } = nodes.current;
+    if(!master) return;
+    const ac = ctx.current;
+    master.gain.setValueAtTime(master.gain.value, ac.currentTime);
+    master.gain.linearRampToValueAtTime(0, ac.currentTime + 1.5);
+    setTimeout(() => {
+      [osc1, oscL, oscR, osc2].forEach(o => { try{ o.stop(); }catch(e){} });
+    }, 1600);
+    nodes.current = {};
+  }
+
+  useEffect(() => {
+    return () => { if(playing) stopAudio(); };
+  }, []);
+
+  function toggle(){
+    if(playing){ stopAudio(); sPlaying(false); }
+    else { startAudio(); sPlaying(true); }
+  }
+
+  function changeVol(e){
+    const v = parseFloat(e.target.value);
+    sVol(v);
+    if(nodes.current.master) nodes.current.master.gain.setTargetAtTime(v, ctx.current.currentTime, 0.1);
+  }
+
+  const c = color || info.color;
+  const bars = [0.4,0.7,1,0.8,0.5,0.9,0.6,1,0.7,0.4,0.8,0.5];
+
+  return html`<div style=${{ background:'rgba(0,0,0,0.25)', border:'1px solid ' + c + '40', borderRadius:18, padding:'14px 16px', marginBottom:14 }}>
+    <div style=${{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+      <div style=${{ flexShrink:0 }}>
+        <div style=${{ width:44, height:44, borderRadius:'50%', background: playing ? c : 'rgba(255,255,255,0.06)', border:'2px solid ' + c, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all 0.3s', boxShadow: playing ? '0 0 18px ' + c + '60' : 'none' }} onClick=${toggle}>
+          ${playing
+            ? html`<svg width="14" height="14" viewBox="0 0 24 24" fill="${c === '#D9AE3F' ? '#2A2235' : '#F3EFE6'}"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`
+            : html`<svg width="14" height="14" viewBox="0 0 24 24" fill=${c}><path d="M8 5V19L19 12L8 5Z"/></svg>`}
+        </div>
+      </div>
+      <div style=${{ flex:1, minWidth:0 }}>
+        <p style=${{ color:'#F3EFE6', fontSize:12, fontWeight:700, marginBottom:2 }}>🎵 Sonido del ${info.mantra}</p>
+        <p style=${{ color:c, fontSize:11 }}>${info.label}</p>
+      </div>
+      <span class="mn" style=${{ color:'#8B7FA8', fontSize:10, flexShrink:0 }}>${playing ? '▶ sonando' : 'silencio'}</span>
+    </div>
+
+    <!-- Ondas animadas -->
+    <div style=${{ display:'flex', alignItems:'center', justifyContent:'center', gap:3, height:32, marginBottom:12 }}>
+      ${bars.map((h, i) => html`<div key=${i} style=${{
+        width:3, borderRadius:3,
+        height: playing ? (h * 28) + 'px' : '4px',
+        background: playing ? c : 'rgba(255,255,255,0.12)',
+        transition:'height 0.3s ease, background 0.3s',
+        animation: playing ? ('wv ' + (0.6 + i*0.08) + 's ease-in-out infinite alternate') : 'none',
+        animationDelay: (i * 0.06) + 's'
+      }}/>`)}
+    </div>
+
+    <!-- Control de volumen -->
+    <div style=${{ display:'flex', alignItems:'center', gap:8 }}>
+      <span style=${{ fontSize:12 }}>🔈</span>
+      <input type="range" min="0.05" max="0.8" step="0.05" value=${vol} onInput=${changeVol}
+        style=${{ flex:1, accentColor:c, cursor:'pointer', height:3 }}/>
+      <span style=${{ fontSize:12 }}>🔊</span>
+    </div>
+
+    <p style=${{ color:'#4A3F5C', fontSize:10, textAlign:'center', marginTop:8, lineHeight:1.5 }}>
+      Beat binaural · onda theta 6 Hz · usa audífonos para mayor efecto
+    </p>
+  </div>
+  <style>@keyframes wv { from { transform:scaleY(0.4); } to { transform:scaleY(1); } }</style>`;
+}
+
+// ── DETALLE DE EJERCICIO ──
+function ExDetail({ phaseId, day, startIdx, back, onComplete, done, streak }){
+  const ph = PH.find(p => p.id === phaseId) || gp(day), r = RT[ph.id], steps = r.steps;
+  const [idx, si] = useState(startIdx || 0);
+  const s = steps[idx], isLast = idx === steps.length - 1, isFirst = idx === 0;
+  const secs = parseSecs(s.reps);
+  const esMeditacion = isMeditacion(s.name);
+  return html`<div style=${{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background:'radial-gradient(ellipse at 50% 0%,' + ph.cl + ' 0%,transparent 40%),linear-gradient(180deg,#2A1E3E 0%,#1E1530 100%)' }}>
+    <div style=${{ padding:'44px 16px 0', flexShrink:0 }}>
+      <div style=${{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+        <button onClick=${back} style=${{ background:'none', border:'none', color:'#C7BCDA', cursor:'pointer', display:'flex', alignItems:'center', gap:5, fontSize:13, padding:0, fontFamily:'Inter' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="#C7BCDA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Volver
+        </button>
+        <span class="mn" style=${{ color:'#8B7FA8', fontSize:12, fontWeight:600 }}>${idx+1} / ${steps.length}</span>
+      </div>
+      <div style=${{ display:'flex', gap:4, marginBottom:14 }}>
+        ${steps.map((_, i) => html`<div key=${i} style=${{ height:4, flex:1, borderRadius:2, background:i === idx ? ph.c : (i < idx ? ph.c + '50' : 'rgba(255,255,255,0.1)'), cursor:'pointer' }} onClick=${() => si(i)}/>`)}
+      </div>
+    </div>
+    <div style=${{ flex:1, overflow:'auto', padding:'0 16px 4px', scrollbarWidth:'none' }}>
+      <div style=${{ width:'100%', maxWidth:secs ? 130 : 200, aspectRatio:'1/1', margin:'0 auto 8px', borderRadius:20, overflow:'hidden' }}><${Img} name=${s.name} color=${ph.c}/></div>
+      ${secs > 0 && html`<${Timer} key=${idx} totalSecs=${secs} color=${ph.c} reps=${s.reps}/>`}
+      <div style=${{ display:'flex', gap:8, alignItems:'center', marginBottom:6, marginTop:8 }}>
+        <span style=${{ background:ph.cl, color:ph.c, border:'1px solid ' + ph.cb, fontSize:10, fontWeight:600, padding:'3px 10px', borderRadius:20 }}>${ph.el} ${ph.en}</span>
+        <span style=${{ color:'#8B7FA8', fontSize:11 }}>${s.sub}</span>
+      </div>
+      <h2 class="fr" style=${{ color:'#F3EFE6', fontSize:20, fontWeight:600, marginBottom:6 }}>${s.name}</h2>
+      <div style=${{ display:'flex', alignItems:'center', gap:8, background:'rgba(255,255,255,0.06)', borderRadius:12, padding:'9px 14px', marginBottom:10 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke=${ph.c} stroke-width="1.8"/><path d="M12 7v5l3 3" stroke=${ph.c} stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span style=${{ color:ph.c, fontSize:13, fontWeight:600 }}>${s.reps}</span>
+      </div>
+      <p style=${{ color:'#8B7FA8', fontSize:10, fontWeight:600, letterSpacing:'1.4px', marginBottom:6 }}>CÓMO HACERLO</p>
+      <p style=${{ color:'#D4CEDF', fontSize:13, lineHeight:1.7, marginBottom:12 }}>${s.desc}</p>
+      ${esMeditacion && html`<${MeditationAudio} key=${phaseId + idx} phaseId=${phaseId} stepName=${s.name} color=${ph.c}/>`}
+      ${isLast && html`<div style=${{ marginBottom:6 }}>
+        ${done
+          ? html`<div style=${{ background:'rgba(90,158,111,0.15)', border:'1px solid rgba(90,158,111,0.3)', borderRadius:14, padding:'13px 16px', textAlign:'center' }}><p style=${{ color:'#5A9E6F', fontSize:14, fontWeight:700, marginBottom:3 }}>✓ ¡Rutina registrada!</p><p style=${{ color:'#8B7FA8', fontSize:12 }}>Racha activa: 🔥 ${streak} días</p></div>`
+          : html`<button onClick=${onComplete} style=${{ width:'100%', padding:'14px', borderRadius:16, background:'linear-gradient(135deg,#E0AD66,#C47A1A)', color:'#2A2235', border:'none', fontWeight:700, fontSize:15, cursor:'pointer' }}>✅ Registrar rutina completada</button>`}
+      </div>`}
+    </div>
+    <div style=${{ padding:'8px 16px 20px', display:'flex', gap:10, flexShrink:0 }}>
+      <button onClick=${() => si(i => Math.max(0, i-1))} disabled=${isFirst} style=${{ flex:1, padding:'12px', borderRadius:50, background:isFirst ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,' + (isFirst ? '0.05' : '0.14') + ')', color:isFirst ? '#3A3050' : '#C7BCDA', fontWeight:600, fontSize:14, cursor:isFirst ? 'default' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:5, fontFamily:'Inter' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke=${isFirst ? '#3A3050' : '#C7BCDA'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Anterior
+      </button>
+      ${!isLast
+        ? html`<button onClick=${() => si(i => i+1)} style=${{ flex:2, padding:'12px', borderRadius:50, background:ph.c, border:'none', color:'#2A2235', fontWeight:700, fontSize:14, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:5, fontFamily:'Inter' }}>Siguiente<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18L15 12L9 6" stroke="#2A2235" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`
+        : html`<button onClick=${back} style=${{ flex:2, padding:'12px', borderRadius:50, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', color:'#C7BCDA', fontWeight:600, fontSize:14, cursor:'pointer', fontFamily:'Inter' }}>Volver al resumen</button>`}
+    </div>
+  </div>`;
+}
+
+// ── RITUALES ──
+function Rituals({ cR, go, onSelect }){
+  const badge = r => {
+    if(cR.has(r.id)) return { text:'✓ Completado', c:'#5C9C7C', bg:'rgba(90,158,111,0.12)' };
+    if(r.status === 'available') return { text:'✨ Disponible hoy', c:r.c, bg:r.c + '18' };
+    return { text:'En ' + r.daysUntil + ' días', c:'#6E6480', bg:'rgba(255,255,255,0.06)' };
+  };
+  return html`<div class="sc" style=${{ animation:'fd 0.25s ease-out both', padding:'44px 16px 0' }}>
+    <${BackBtn} onClick=${() => go('home')} label="Inicio"/>
+    <p style=${{ color:'#C7BCDA', fontSize:11, fontWeight:600, letterSpacing:'1.5px', marginBottom:5 }}>LUNA Y SOL</p>
+    <h1 class="fr" style=${{ color:'#F3EFE6', fontSize:22, fontWeight:600, marginBottom:6 }}>Rituales del Ciclo</h1>
+    <p style=${{ color:'#8B7FA8', fontSize:13, marginBottom:18, lineHeight:1.5 }}>Prácticas especiales alineadas con los ciclos lunares.</p>
+    ${RITUALS.map(r => {
+      const b = badge(r);
+      return html`<div key=${r.id} class="iv" style=${{ padding:'14px', cursor:'pointer', marginBottom:10 }} onClick=${() => onSelect(r)}>
+        <div style=${{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style=${{ width:48, height:48, borderRadius:14, background:r.bg, border:'1px solid ' + r.c + '40', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:26 }}>🌕</div>
+          <div style=${{ flex:1 }}>
+            <div style=${{ display:'flex', justifyContent:'space-between', marginBottom:5 }}><p style=${{ color:'#2A2235', fontSize:14, fontWeight:600 }}>${r.name}</p><span style=${{ color:'#6E6480', fontSize:11 }}>${r.dur}</span></div>
+            <p style=${{ color:'#6E6480', fontSize:11, marginBottom:6 }}>${r.sub}</p>
+            <span style=${{ display:'inline-block', background:b.bg, color:b.c, fontSize:10, fontWeight:600, padding:'3px 10px', borderRadius:20 }}>${b.text}</span>
+          </div>
+        </div>
+      </div>`;
+    })}
+  </div>`;
+}
+
+// ── DETALLE DE RITUAL ──
+function RitualDetail({ ritual, cSteps, back, toggle, complete }){
+  const done = cSteps.size, allDone = done === ritual.steps.length;
+  return html`<div class="sc" style=${{ animation:'fd 0.25s ease-out both', padding:'44px 16px 0' }}>
+    <${BackBtn} onClick=${back} label="Rituales"/>
+    <div style=${{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
+      <div style=${{ width:52, height:52, borderRadius:14, background:ritual.bg, border:'1px solid ' + ritual.c + '40', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28 }}>🌕</div>
+      <div><h1 class="fr" style=${{ color:'#F3EFE6', fontSize:20, fontWeight:600, marginBottom:2 }}>${ritual.name}</h1><p style=${{ color:'#8B7FA8', fontSize:12 }}>${ritual.sub} · ${ritual.dur}</p></div>
+    </div>
+    <div style=${{ background:ritual.bg, border:'1px solid ' + ritual.c + '30', borderRadius:14, padding:'12px 14px', marginBottom:16 }}>
+      <p class="fr" style=${{ color:'#F3EFE6', fontSize:14, fontStyle:'italic', lineHeight:1.5 }}>"${ritual.id === 'luna-nueva' ? 'Hoy planto la semilla.' : ritual.id === 'luna-llena' ? 'Hoy suelto lo que ya cumplió su propósito.' : 'Hoy honro el equilibrio.'}"</p>
+    </div>
+    <div style=${{ height:4, background:'rgba(255,255,255,0.08)', borderRadius:2, marginBottom:14 }}><div style=${{ height:'100%', width:((done/ritual.steps.length)*100) + '%', background:ritual.c, borderRadius:2, transition:'width 0.4s' }}/></div>
+    ${ritual.steps.map((s, i) => {
+      const ch = cSteps.has(i);
+      return html`<div key=${i} class="gl" style=${{ padding:'12px', display:'flex', gap:10, cursor:'pointer', opacity:ch ? 0.6 : 1, marginBottom:9 }} onClick=${() => toggle(i)}>
+        <div style=${{ width:22, height:22, borderRadius:'50%', flexShrink:0, border:'2px solid ' + (ch ? ritual.c : 'rgba(255,255,255,0.18)'), background:ch ? ritual.c : 'transparent', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          ${ch && html`<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5L4 7L8 3" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
+        </div>
+        <div><p style=${{ color:'#F3EFE6', fontSize:13, fontWeight:500, marginBottom:3, textDecoration:ch ? 'line-through' : 'none' }}>${s.n}</p><p style=${{ color:'#8B7FA8', fontSize:12, lineHeight:1.5 }}>${s.i}</p></div>
+      </div>`;
+    })}
+    ${allDone && html`<button class="bg" style=${{ marginTop:8 }} onClick=${complete}>Completar ritual ✨</button>`}
+  </div>`;
+}
+
+// ══════════════════════════════
+// APP ROOT
+// ══════════════════════════════
+function App(){
+  const [email, sEmail] = useState(() => LS.g('email', ''));
+  const isAdmin = email === ADMIN;
+  function logout(){ LS.s('email', ''); sEmail(''); }
+
+  const ini = boot();
+  const [name, sName] = useState(ini.name);
+  const [day] = useState(ini.day);
+  const [streak, sStreak] = useState(ini.streak);
+  const [lc, sLc] = useState(ini.lc);
+  const [today] = useState(ini.today);
+  const [yesterday] = useState(ini.yesterday);
+  const [editing, sEditing] = useState(false);
+  const [ni, sNi] = useState(ini.name);
+  const [view, sView] = useState('home');
+  const [phase, sPhase] = useState(gp(ini.day).id);
+  const [exIdx, sExIdx] = useState(0);
+  const [ritual, sRitual] = useState(null);
+  const [cRituals, sCRituals] = useState(new Set(['equinoccio']));
+  const [rSteps, sRSteps] = useState({});
+
+  if(!email) return html`<${EmailLogin} onLogin=${e => sEmail(e)}/>`;
+  if(!name) return html`<${Setup} onSave=${n => { sName(n); LS.s('name', n); }}/>`;
+
+  if(view === 'admin') return html`<div style=${{ display:'flex', flexDirection:'column', height:'100%' }}>
+    <${AdminPanel} onBack=${() => sView('home')} onLogout=${logout}/>
+  </div>`;
+
+  if(editing) return html`<div style=${{ flex:1, background:'linear-gradient(#2D1F45,#1E1530)', padding:'60px 24px 0', display:'flex', flexDirection:'column', gap:14 }}>
+    <h2 class="fr" style=${{ color:'#F3EFE6', fontSize:22, fontWeight:600 }}>¿Cómo te llamas?</h2>
+    <input class="ip" value=${ni} onInput=${e => sNi(e.target.value)} onKeyDown=${e => { if(e.key === 'Enter' && ni.trim()){ sName(ni.trim()); LS.s('name', ni.trim()); sEditing(false); } }}/>
+    <button class="bg" onClick=${() => { if(ni.trim()){ sName(ni.trim()); LS.s('name', ni.trim()); sEditing(false); } }}>Guardar</button>
+    <button onClick=${() => sEditing(false)} style=${{ background:'none', border:'none', color:'#8B7FA8', cursor:'pointer', fontSize:14, fontFamily:'Inter' }}>Cancelar</button>
+  </div>`;
+
+  function regWorkout(){
+    const t = tod(); if(lc === t) return;
+    const ns = lc === yesterday ? streak + 1 : 1;
+    sStreak(ns); sLc(t); LS.s('streak', ns); LS.s('last_complete', t);
+  }
+  function go(v, pid){ if(pid) sPhase(pid); sView(v); }
+  function openEx(i){ sExIdx(i); sView('ex'); }
+  const done = lc === today;
+  const navActive = { home:'home', oracle:'oracle', routines:'routines', 'routine-summary':'routines', ex:'routines', rituals:'home', 'ritual-detail':'home' }[view] || 'home';
+
+  return html`<div style=${{ display:'flex', flexDirection:'column', height:'100%', position:'relative' }}>
+    ${view === 'home' && html`<${Home} st=${{ name, day, streak, lc, today }} go=${go} editName=${() => { sNi(name); sEditing(true); }}/>`}
+    ${view === 'oracle' && html`<${Oracle} day=${day}/>`}
+    ${view === 'routines' && html`<${RoutineList} day=${day} go=${go}/>`}
+    ${view === 'routine-summary' && html`<${RoutineSummary} phaseId=${phase} day=${day} back=${() => sView('routines')} openEx=${openEx}/>`}
+    ${view === 'ex' && html`<${ExDetail} phaseId=${phase} day=${day} startIdx=${exIdx} back=${() => sView('routine-summary')} onComplete=${regWorkout} done=${done} streak=${streak}/>`}
+    ${view === 'rituals' && html`<${Rituals} cR=${cRituals} go=${go} onSelect=${r => { sRitual(r); sView('ritual-detail'); }}/>`}
+    ${view === 'ritual-detail' && ritual && html`<${RitualDetail} ritual=${ritual} cSteps=${rSteps[ritual.id] || new Set()} back=${() => sView('rituals')} toggle=${i => { sRSteps(m => { const s = new Set(m[ritual.id] || []); s.has(i) ? s.delete(i) : s.add(i); return { ...m, [ritual.id]: s }; }); }} complete=${() => { sCRituals(s => new Set([...s, ritual.id])); sView('rituals'); }}/>`}
+    <${Nav} active=${navActive} go=${v => sView(v)} isAdmin=${isAdmin} openAdmin=${() => sView('admin')}/>
+  </div>`;
+}
+
+render(html`<${App}/>`, document.getElementById('as'));
+})();
+</script>
+</body>
+</html>

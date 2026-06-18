@@ -114,7 +114,7 @@ export interface Routine {
 
 export const ROUTINES: Record<string, Routine> = {
   raiz: { title: 'Rutina de Raíz', dur: '17 min', steps: [
-    { name: 'Respiración abdominal', reps: '3 minutos', sub: 'Activación de tierra', desc: 'Siéntate recta. Una mano en abdomen, otra en pecho. Inhala 4, sostén 2, exhala 6.' },
+    { name: 'Respiración abdominal', reps: '2 minutos', sub: 'Activación de tierra', desc: 'Siéntate recta. Una mano en abdomen, otra en pecho. Inhala 4, sostén 2, exhala 6.' },
     { name: 'Sentadillas profundas', reps: '3 × 12 reps', sub: 'Fuerza de piernas', desc: 'Pies al ancho de caderas. Baja hasta muslos paralelos. Empuja desde los talones.' },
     { name: 'Puente de glúteos', reps: '3 × 10 reps', sub: 'Activación glútea', desc: 'Boca arriba, rodillas flexionadas. Eleva la cadera, sostén 2 seg.' },
     { name: 'Estocadas alternas', reps: '2 × 8 por pierna', sub: 'Equilibrio y fuerza', desc: 'Paso largo al frente, baja la rodilla trasera sin tocar el piso.' },
@@ -130,7 +130,7 @@ export const ROUTINES: Record<string, Routine> = {
     { name: 'Meditación sacra', reps: '7 minutos', sub: 'Integración', desc: 'Luz naranja pulsando en tu zona sacra.' },
   ]},
   solar: { title: 'Solar Plexus Flow', dur: '20 min', steps: [
-    { name: 'Respiración de fuego', reps: '3 minutos', sub: 'Activación de poder', desc: 'Exhala con fuerza contrayendo el abdomen. 1 exhalo por segundo.' },
+    { name: 'Respiración de fuego', reps: '2 minutos', sub: 'Activación de poder', desc: 'Exhala con fuerza contrayendo el abdomen. 1 exhalo por segundo.' },
     { name: 'Plank de antebrazos', reps: '3 × 45 seg', sub: 'Fuerza de núcleo', desc: 'Antebrazos en el suelo. Cuerpo en línea recta.' },
     { name: 'Mountain climbers', reps: '3 × 30 seg', sub: 'Cardio de fuego', desc: 'Desde plank, lleva rodillas al pecho alternando rápido.' },
     { name: 'Russian twists', reps: '3 × 20 reps', sub: 'Rotación de poder', desc: 'Sentada, tronco a 45°. Gira el torso de lado a lado.' },
