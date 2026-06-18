@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, memo } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import {
   Home, Sparkles, List, ChevronLeft, ChevronRight,
   Play, Pause, RotateCcw, Check, User, Shield,
@@ -10,61 +11,7 @@ import {
   Routine, ROUTINES, Ritual, RITUALS,
   parseSeconds, hasSide
 } from './data/constants';
-
-// ============ LOCAL STORAGE ============
-function lsGet<T>(key: string, def: T): T {
-  try {
-    const v = localStorage.getItem('cf_' + key);
-    return v !== null ? JSON.parse(v) : def;
-  } catch { return def; }
-}
-function lsSet<T>(key: string, val: T): void {
-  try { localStorage.setItem('cf_' + key, JSON.stringify(val)); } catch {}
-}
-
-// ============ ACCESS SYSTEM (code-based) ============
-const MASTER_KEY = 'chakrafit_sagrada_2024';
-
-function genCode(email: string): string {
-  const str = email.toLowerCase().trim() + '::' + MASTER_KEY;
-  let h = 0;
-  for (let i = 0; i < str.length; i++) { h = ((h << 5) - h + str.charCodeAt(i)) | 0; }
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  let n = Math.abs(h);
-  for (let i = 0; i < 8; i++) {
-    code += chars[n % chars.length];
-    n = Math.floor(n / chars.length) || Math.abs(h * (i + 2)) % 1e9;
-  }
-  return code.slice(0, 4) + '-' + code.slice(4, 8);
-}
-
-function verifyAccess(email: string, code: string): boolean {
-  if (email === ADMIN_EMAIL) return true;
-  return code.toUpperCase().replace(/[^A-Z0-9]/g, '') === genCode(email).replace('-', '');
-}
-
-function getInvited(): string[] { return lsGet<string[]>('invited', []); }
-function addInvited(email: string): void {
-  const list = getInvited();
-  if (!list.includes(email)) lsSet('invited', [...list, email]);
-}
-function removeInvited(email: string): void {
-  lsSet('invited', getInvited().filter(e => e !== email));
-}
-
-// ============ BOOT ============
-interface BootData { name: string; day: number; streak: number; lastComplete: string; today: string; yesterday: string; }
-function boot(): BootData {
-  const today = getTodayStr(); const yesterday = getYesterdayStr();
-  const lastOpen = lsGet('last_open', '');
-  let day = lsGet('prog_day', 1);
-  if (lastOpen && lastOpen !== today) { day = Math.min(30, day + daysBetween(lastOpen, today)); lsSet('prog_day', day); }
-  lsSet('last_open', today);
-  const storedStreak = lsGet('streak', 0); const lc = lsGet('last_complete', '');
-  const effectiveStreak = (lc === today || lc === yesterday) ? storedStreak : 0;
-  return { name: lsGet('name', ''), day, streak: effectiveStreak, lastComplete: lc, today, yesterday };
-}
+import { supabase } from './lib/supabase';
 
 // ============ EXERCISE SVGs ============
 const SVGS: Record<string, (c: string) => string> = {
@@ -264,24 +211,65 @@ function BottomNav({ active, onNav, isAdmin }: {
 }
 
 // ============ AUTH SCREENS ============
-function EmailLogin({ onLogin }: { onLogin: (email: string) => void }) {
+function EmailLogin() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<1 | 2>(1);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [resent, setResent] = useState(false);
 
-  const nextStep = () => {
+  const sendOtp = async (e: string) => {
+    // No emailRedirectTo — magic link uses Supabase's configured site URL,
+    // avoiding the "site can't be reached" error from localhost redirects.
+    return supabase.auth.signInWithOtp({ email: e, options: { shouldCreateUser: true } });
+  };
+
+  const nextStep = async () => {
     const e = email.trim().toLowerCase();
     if (!e.includes('@')) { setError('Ingresa un correo válido.'); return; }
     setError('');
-    if (e === ADMIN_EMAIL) { doLogin(e, ''); }
-    else { setStep(2); }
+    setLoading(true);
+
+    if (e !== ADMIN_EMAIL) {
+      const { data: allowed, error: rpcErr } = await supabase.rpc('is_email_allowed', { check_email: e });
+      if (rpcErr || !allowed) {
+        setError('Este correo no tiene acceso. Solicítalo a la administradora.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    const { error: otpErr } = await sendOtp(e);
+    if (otpErr) {
+      setError('Error al enviar el código. Inténtalo de nuevo.');
+      setLoading(false);
+      return;
+    }
+    setStep(2);
+    setLoading(false);
   };
 
-  const doLogin = (e: string, c: string) => {
-    if (verifyAccess(e, c)) { lsSet('email', e); onLogin(e); }
-    else { setError('Código incorrecto. Verifica el código que te enviaron.'); setShake(true); setTimeout(() => setShake(false), 600); }
+  const doLogin = async () => {
+    const e = email.trim().toLowerCase();
+    if (!code.trim()) return;
+    setLoading(true);
+    const { error: verifyErr } = await supabase.auth.verifyOtp({ email: e, token: code.trim(), type: 'email' });
+    if (verifyErr) {
+      setError('Código incorrecto. Verifica el código en tu correo.');
+      setShake(true);
+      setTimeout(() => setShake(false), 600);
+    }
+    setLoading(false);
+  };
+
+  const resend = async () => {
+    const e = email.trim().toLowerCase();
+    setResent(false);
+    await sendOtp(e);
+    setResent(true);
+    setTimeout(() => setResent(false), 4000);
   };
 
   return (
@@ -305,31 +293,62 @@ function EmailLogin({ onLogin }: { onLogin: (email: string) => void }) {
 
         {step === 2 && (
           <div className="mb-4">
-            <div className="flex items-center gap-3 mb-3 bg-white/[0.05] rounded-xl px-3 py-2.5">
+            <div className="flex items-center gap-3 mb-4 bg-white/[0.05] rounded-xl px-3 py-2.5">
               <span className="text-[#8B7FA8] text-sm flex-1 truncate">{email}</span>
               <button onClick={() => { setStep(1); setError(''); setCode(''); }} className="text-[#E0AD66] text-xs font-semibold cursor-pointer bg-transparent border-none shrink-0">Cambiar</button>
             </div>
-            <p className="text-[#C7BCDA] text-xs mb-3 leading-relaxed">Ingresa el código de acceso que te compartió la administradora:</p>
-            <div className={shake ? 'animate-bounce' : ''}>
-              <input placeholder="XXXX-XXXX" value={code}
-                onChange={e => { setCode(e.target.value.toUpperCase()); setError(''); }}
-                onKeyDown={e => { if (e.key === 'Enter') doLogin(email.trim().toLowerCase(), code); }}
-                className="w-full bg-white/[0.07] border border-white/20 hover:border-white/30 focus:border-[#E0AD66] rounded-2xl text-[#F3EFE6] text-xl py-4 px-5 text-center outline-none transition-all font-['Space_Grotesk'] tracking-[4px] font-bold"
-                maxLength={9}
+
+            <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 mb-4 text-center">
+              <div className="text-3xl mb-2">📬</div>
+              <p className="text-[#F3EFE6] text-sm font-semibold mb-1">Revisa tu correo</p>
+              <p className="text-[#8B7FA8] text-xs leading-relaxed">
+                Te enviamos un correo a <span className="text-[#C7BCDA]">{email}</span>.<br/>
+                Busca el <strong className="text-[#F3EFE6]">código de 6 dígitos</strong> e ingrésalo aquí.
+              </p>
+            </div>
+
+            <div className={`mb-3 ${shake ? 'animate-bounce' : ''}`}>
+              <input
+                placeholder="000000"
+                value={code}
+                onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError(''); }}
+                onKeyDown={e => { if (e.key === 'Enter') doLogin(); }}
+                className="w-full bg-white/[0.07] border border-white/20 hover:border-white/30 focus:border-[#E0AD66] rounded-2xl text-[#F3EFE6] text-2xl py-4 px-5 text-center outline-none transition-all font-['Space_Grotesk'] tracking-[6px] font-bold"
+                maxLength={6}
+                inputMode="numeric"
+                autoFocus
               />
             </div>
+
+            {resent && <p className="text-[#5A9E6F] text-xs text-center mb-2 font-semibold">✓ Código reenviado</p>}
           </div>
         )}
 
         {error && <div className="bg-[rgba(196,75,75,0.1)] border border-[rgba(196,75,75,0.2)] rounded-xl mb-4 py-2.5 px-4 text-center"><p className="text-[#E07070] text-sm">🔒 {error}</p></div>}
 
-        <button
-          onClick={step === 1 ? nextStep : () => doLogin(email.trim().toLowerCase(), code)}
-          className="w-full bg-[#E0AD66] hover:bg-[#d49e55] text-[#2A2235] font-bold text-base py-4 rounded-2xl mb-6 transition-all cursor-pointer"
-        >
-          {step === 1 ? 'Continuar →' : 'Ingresar →'}
-        </button>
-        <p className="text-[#4A3F5C] text-xs text-center">¿Sin código? Solicítalo a la administradora del programa.</p>
+        {step === 1 ? (
+          <button
+            onClick={nextStep}
+            disabled={loading}
+            className="w-full bg-[#E0AD66] hover:bg-[#d49e55] text-[#2A2235] font-bold text-base py-4 rounded-2xl mb-6 transition-all cursor-pointer disabled:opacity-60"
+          >
+            {loading ? 'Un momento...' : 'Continuar →'}
+          </button>
+        ) : (
+          <div className="flex flex-col gap-3 mb-6">
+            <button
+              onClick={doLogin}
+              disabled={loading || code.length < 6}
+              className="w-full bg-[#E0AD66] hover:bg-[#d49e55] text-[#2A2235] font-bold text-base py-4 rounded-2xl transition-all cursor-pointer disabled:opacity-50"
+            >
+              {loading ? 'Verificando...' : 'Ingresar →'}
+            </button>
+            <button onClick={resend} className="w-full py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[#8B7FA8] hover:text-[#C7BCDA] text-xs font-semibold transition-all cursor-pointer">
+              Reenviar código
+            </button>
+          </div>
+        )}
+        <p className="text-[#4A3F5C] text-xs text-center">¿Sin acceso? Solicítalo a la administradora del programa.</p>
       </div>
     </div>
   );
@@ -563,13 +582,13 @@ function OracleScreen({ day }: { day: number }) {
             const past = ph.days[ph.days.length-1] < day;
             const sel = ph.id === selectedPhase.id;
             return (
-              <div key={ph.id} className="flex gap-3 pb-4 relative z-10 cursor-pointer group" onClick={() => handlePhaseSelect(ph)}>
-                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all" style={{ background: sel ? ph.c : ph.c+'25', border: `2px solid ${sel ? ph.c : ph.c+'60'}`, boxShadow: sel ? `0 0 16px ${ph.c}60` : 'none', fontSize: past&&!sel ? 12 : 20 }}>
-                  {past&&!sel ? <Check size={12}/> : ph.el}
+              <div key={ph.id} className="flex gap-3 pb-5 relative z-10 cursor-pointer" onClick={() => handlePhaseSelect(ph)}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: sel ? ph.c : ph.c+'25', border: `2px solid ${sel ? ph.c : ph.c+'60'}`, boxShadow: sel ? `0 0 14px ${ph.c}60` : 'none', fontSize: past&&!sel ? 12 : 20 }}>
+                  {past&&!sel ? <Check size={11}/> : ph.el}
                 </div>
-                <div className="flex-1 pt-1.5 min-w-0">
+                <div className="flex-1 pt-1.5">
                   <p className="text-[10px] font-semibold mb-0.5 tracking-wider" style={{ color: sel ? ph.c : '#8B7FA8' }}>DÍAS {ph.days[0]}–{ph.days[ph.days.length-1]}</p>
-                  <p className="text-xs truncate group-hover:text-[#C7BCDA] transition-colors" style={{ color: sel ? '#F3EFE6' : '#6E6480', fontWeight: sel ? 600 : 400 }}>{ph.name} · {ph.theme}</p>
+                  <p className="text-xs" style={{ color: sel ? '#F3EFE6' : '#C7BCDA', fontWeight: sel ? 600 : 400 }}>{ph.name} · {ph.theme}</p>
                 </div>
               </div>
             );
@@ -884,38 +903,52 @@ function RitualDetailScreen({ ritual, completedSteps, back, toggle, complete }: 
 }
 
 // ============ ADMIN PANEL ============
+interface AllowedEmail { email: string; invited_at: string; }
+
 function AdminPanel({ onLogout }: { onLogout: () => void }) {
-  const [invited, setInvited] = useState<string[]>(getInvited);
+  const [invited, setInvited] = useState<AllowedEmail[]>([]);
   const [newEmail, setNewEmail] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [copied, setCopied] = useState('');
+  const [loadingData, setLoadingData] = useState(true);
 
-  const add = () => {
+  const loadInvited = async () => {
+    const { data } = await supabase
+      .from('allowed_emails')
+      .select('email, invited_at')
+      .eq('revoked', false)
+      .order('invited_at', { ascending: false });
+    if (data) setInvited(data);
+    setLoadingData(false);
+  };
+
+  useEffect(() => { loadInvited(); }, []);
+
+  const add = async () => {
     const e = newEmail.trim().toLowerCase();
     if (!e.includes('@')) { setError('Correo inválido.'); return; }
     if (e === ADMIN_EMAIL) { setError('Ese es tu correo de admin.'); return; }
-    addInvited(e);
-    const next = getInvited();
-    setInvited(next); setNewEmail(''); setError('');
-    setSuccess('✓ Código generado para ' + e); setTimeout(() => setSuccess(''), 3000);
+    const { error: insertErr } = await supabase
+      .from('allowed_emails')
+      .upsert({ email: e, invited_by: ADMIN_EMAIL }, { onConflict: 'email' });
+    if (insertErr) { setError('Error al agregar el correo.'); return; }
+    await loadInvited();
+    setNewEmail(''); setError('');
+    setSuccess('✓ Acceso habilitado para ' + e);
+    setTimeout(() => setSuccess(''), 3000);
   };
 
-  const revoke = (email: string) => {
-    removeInvited(email); setInvited(getInvited()); setConfirmDelete(null);
+  const revoke = async (email: string) => {
+    await supabase.from('allowed_emails').update({ revoked: true }).eq('email', email);
+    setInvited(prev => prev.filter(i => i.email !== email));
+    setConfirmDelete(null);
     setSuccess('Acceso revocado.'); setTimeout(() => setSuccess(''), 2500);
   };
 
-  const copyCode = (e: string, code: string) => {
-    const msg = `Hola! Tu código de acceso para ChakraFit:\n\nCorreo: ${e}\nCódigo: ${code}\n\nIngresa en la app con estos datos. ✨`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(msg).then(() => { setCopied(e); setTimeout(() => setCopied(''), 2000); });
-    } else {
-      const ta = document.createElement('textarea'); ta.value = msg;
-      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
-      document.body.removeChild(ta); setCopied(e); setTimeout(() => setCopied(''), 2000);
-    }
+  const formatDate = (iso: string) => {
+    try { return new Date(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }); }
+    catch { return iso; }
   };
 
   return (
@@ -931,7 +964,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
       {/* How it works */}
       <div className="bg-[rgba(224,173,102,0.07)] border border-[rgba(224,173,102,0.18)] rounded-xl lg:rounded-2xl p-4 mb-6">
         <p className="text-[#E0AD66] text-[11px] font-semibold tracking-widest mb-2">✨ CÓMO FUNCIONA</p>
-        <p className="text-[#C7BCDA] text-sm leading-relaxed">Agrega el correo de cada persona → se genera su código único → copia y envíaselo. El código funciona en <strong className="text-[#F3EFE6]">cualquier dispositivo</strong>.</p>
+        <p className="text-[#C7BCDA] text-sm leading-relaxed">Agrega el correo de cada persona → Supabase le envía un <strong className="text-[#F3EFE6]">código OTP</strong> por correo cuando intente ingresar. El acceso funciona en <strong className="text-[#F3EFE6]">cualquier dispositivo</strong>.</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 mb-7">
@@ -941,7 +974,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
         </div>
         <div className="bg-white/[0.04] border border-white/[0.07] rounded-xl lg:rounded-2xl p-4 text-center">
           <div className="text-2xl mb-1">🔑</div>
-          <div className="text-[#8B7FA8] text-xs">códigos seguros</div>
+          <div className="text-[#8B7FA8] text-xs">acceso por OTP</div>
         </div>
         <div className="hidden lg:block bg-white/[0.04] border border-white/[0.07] rounded-2xl p-4 text-center">
           <div className="font-['Space_Grotesk'] text-[#A87DC8] text-3xl font-bold">{invited.length + 1}</div>
@@ -973,28 +1006,30 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
             <div className="w-9 h-9 rounded-full bg-[rgba(224,173,102,0.12)] border-2 border-[rgba(224,173,102,0.3)] flex items-center justify-center text-lg shrink-0">👑</div>
             <div className="flex-1 min-w-0">
               <p className="text-[#E0AD66] text-sm font-semibold truncate">{ADMIN_EMAIL}</p>
-              <p className="text-[#6E6480] text-xs">Acceso directo · sin código</p>
+              <p className="text-[#6E6480] text-xs">Acceso directo · OTP</p>
             </div>
           </div>
         </div>
 
-        {/* Right col — invited list with codes */}
+        {/* Right col — invited list */}
         <div>
-          <h2 className="text-[#8B7FA8] text-[11px] font-semibold tracking-widest mb-3">ACCESOS GENERADOS ({invited.length})</h2>
-          {invited.length === 0
-            ? <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl lg:rounded-2xl p-6 text-center">
-                <div className="text-3xl mb-3">🌱</div>
-                <p className="text-[#4A3F5C] text-sm">Aún no has invitado a nadie.<br/>Agrega un correo arriba.</p>
-              </div>
-            : <div className="flex flex-col gap-3">
-                {invited.map(e => {
-                  const code = genCode(e);
-                  const isCopied = copied === e;
-                  return (
+          <h2 className="text-[#8B7FA8] text-[11px] font-semibold tracking-widest mb-3">ACCESOS ACTIVOS ({invited.length})</h2>
+          {loadingData
+            ? <div className="text-[#4A3F5C] text-sm text-center py-8">Cargando...</div>
+            : invited.length === 0
+              ? <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl lg:rounded-2xl p-6 text-center">
+                  <div className="text-3xl mb-3">🌱</div>
+                  <p className="text-[#4A3F5C] text-sm">Aún no has invitado a nadie.<br/>Agrega un correo arriba.</p>
+                </div>
+              : <div className="flex flex-col gap-3">
+                  {invited.map(({ email: e, invited_at }) => (
                     <div key={e} className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-3.5">
-                      <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-[rgba(90,158,111,0.12)] border-2 border-[rgba(90,158,111,0.25)] flex items-center justify-center text-xs text-[#5A9E6F] font-bold shrink-0">✓</div>
-                        <p className="text-[#C7BCDA] text-sm font-medium flex-1 min-w-0 truncate">{e}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[#C7BCDA] text-sm font-medium truncate">{e}</p>
+                          <p className="text-[#6E6480] text-[11px] mt-0.5">Invitada el {formatDate(invited_at)}</p>
+                        </div>
                         {confirmDelete === e
                           ? <div className="flex gap-1.5 shrink-0">
                               <button onClick={() => revoke(e)} className="bg-[rgba(196,75,75,0.15)] border border-[rgba(196,75,75,0.3)] rounded-lg text-[#E07070] text-[11px] py-1 px-2.5 font-semibold cursor-pointer">Revocar</button>
@@ -1003,21 +1038,17 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                           : <button onClick={() => setConfirmDelete(e)} className="text-[#6E6480] hover:text-[#E07070] cursor-pointer transition-all shrink-0 p-1"><Trash2 size={14}/></button>
                         }
                       </div>
-                      <div className="flex items-center gap-3 bg-white/[0.04] rounded-xl px-3 py-2.5">
-                        <span className="font-['Space_Grotesk'] text-[#E0AD66] text-lg font-bold tracking-[3px] flex-1">{code}</span>
-                        <button
-                          onClick={() => copyCode(e, code)}
-                          className={`rounded-lg text-xs py-1.5 px-3 font-semibold cursor-pointer transition-all shrink-0 border ${isCopied ? 'bg-[rgba(90,158,111,0.15)] border-[rgba(90,158,111,0.4)] text-[#5A9E6F]' : 'bg-[rgba(224,173,102,0.12)] border-[rgba(224,173,102,0.3)] text-[#E0AD66] hover:bg-[rgba(224,173,102,0.2)]'}`}
-                        >
-                          {isCopied ? '✓ Copiado' : '📋 Copiar'}
-                        </button>
-                      </div>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
           }
         </div>
+      </div>
+
+      <div className="mt-8 pt-6 border-t border-white/[0.06]">
+        <button onClick={onLogout} className="flex items-center gap-2 text-[#6E6480] hover:text-[#8B7FA8] text-sm transition-all cursor-pointer">
+          <LogOut size={14}/> Cerrar sesión
+        </button>
       </div>
     </div>
   );
@@ -1045,35 +1076,176 @@ function EditNameModal({ currentName, onSave, onCancel }: { currentName: string;
 type View = 'home' | 'oracle' | 'routines' | 'routine-summary' | 'exercise' | 'rituals' | 'ritual-detail' | 'admin';
 
 export default function App() {
-  const [email, setEmail] = useState<string>(() => lsGet('email', ''));
-  const isAdmin = email === ADMIN_EMAIL;
-  const logout = () => { lsSet('email', ''); setEmail(''); };
+  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
 
-  const bootData = boot();
-  const [name, setName] = useState(bootData.name);
-  const [day] = useState(bootData.day);
-  const [streak, setStreak] = useState(bootData.streak);
-  const [lastComplete, setLastComplete] = useState(bootData.lastComplete);
-  const [today] = useState(bootData.today);
-  const [yesterday] = useState(bootData.yesterday);
+  const [name, setName] = useState('');
+  const [day, setDay] = useState(1);
+  const [streak, setStreak] = useState(0);
+  const [lastComplete, setLastComplete] = useState('');
+  const today = getTodayStr();
+  const yesterday = getYesterdayStr();
 
   const [editing, setEditing] = useState(false);
   const [view, setView] = useState<View>('home');
-  const [selectedPhase, setSelectedPhase] = useState(getPhase(bootData.day).id);
+  const [selectedPhase, setSelectedPhase] = useState('');
   const [exerciseIdx, setExerciseIdx] = useState(0);
   const [ritual, setRitual] = useState<Ritual | null>(null);
-  const [completedRituals, setCompletedRituals] = useState<Set<string>>(new Set(['equinoccio']));
+  const [completedRituals, setCompletedRituals] = useState<Set<string>>(new Set());
   const [ritualSteps, setRitualSteps] = useState<Record<string, Set<number>>>({});
 
-  if (!email) return <EmailLogin onLogin={e => setEmail(e)}/>;
-  if (!name) return <Setup onSave={n => { setName(n); lsSet('name', n); }}/>;
+  const loadUserData = async (sess: Session) => {
+    const uid = sess.user.id;
+    const userEmail = sess.user.email!;
 
-  const registerWorkout = () => {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('name')
+      .eq('id', uid)
+      .maybeSingle();
+
+    if (profile?.name) setName(profile.name);
+    else setName('');
+
+    const { data: prog } = await supabase
+      .from('progress')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle();
+
+    if (prog) {
+      let currentDay = prog.day as number;
+      const lastOpen = prog.last_open as string | null;
+      if (lastOpen && lastOpen !== today) {
+        currentDay = Math.min(30, currentDay + daysBetween(lastOpen, today));
+      }
+      await supabase.from('progress').update({
+        day: currentDay,
+        last_open: today,
+        updated_at: new Date().toISOString(),
+      }).eq('user_id', uid);
+
+      setDay(currentDay);
+      const lc = (prog.last_complete as string) || '';
+      setStreak((lc === today || lc === yesterday) ? (prog.streak as number) : 0);
+      setLastComplete(lc);
+    } else {
+      // Ensure profile row exists so progress FK resolves
+      await supabase.from('profiles').upsert({ id: uid, email: userEmail }, { onConflict: 'id' });
+      await supabase.from('progress').insert({ user_id: uid, day: 1, streak: 0, last_open: today });
+      setDay(1); setStreak(0); setLastComplete('');
+    }
+
+    const { data: rituals } = await supabase
+      .from('completed_rituals')
+      .select('ritual_id')
+      .eq('user_id', uid);
+    if (rituals) setCompletedRituals(new Set(rituals.map(r => r.ritual_id as string)));
+
+    const { data: steps } = await supabase
+      .from('ritual_step_progress')
+      .select('ritual_id, step_index')
+      .eq('user_id', uid);
+    if (steps) {
+      const map: Record<string, Set<number>> = {};
+      steps.forEach(({ ritual_id, step_index }) => {
+        if (!map[ritual_id]) map[ritual_id] = new Set();
+        map[ritual_id].add(step_index as number);
+      });
+      setRitualSteps(map);
+    }
+  };
+
+  useEffect(() => {
+    // INITIAL_SESSION fires once on startup (handles magic-link redirects from URL)
+    // SIGNED_IN fires for new logins (OTP code verification)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      (async () => {
+        if (event === 'INITIAL_SESSION') {
+          setSession(s);
+          if (s) await loadUserData(s);
+          setLoading(false);
+        } else if (event === 'SIGNED_IN' && s) {
+          setSession(s);
+          await loadUserData(s);
+          setLoading(false);
+        } else if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setName(''); setDay(1); setStreak(0); setLastComplete('');
+          setCompletedRituals(new Set()); setRitualSteps({});
+          setLoading(false);
+        }
+      })();
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#0D0A18]">
+        <div className="text-center">
+          <div className="text-5xl mb-4 animate-breathe">🌸</div>
+          <p className="text-[#8B7FA8] text-sm">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) return <EmailLogin />;
+
+  const isAdmin = session.user.email === ADMIN_EMAIL;
+
+  const saveName = async (n: string) => {
+    setName(n);
+    const uid = session.user.id;
+    await supabase.from('profiles').upsert(
+      { id: uid, email: session.user.email!, name: n },
+      { onConflict: 'id' }
+    );
+  };
+
+  if (!name) return <Setup onSave={saveName} />;
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  const registerWorkout = async () => {
     const t = getTodayStr();
     if (lastComplete === t) return;
     const newStreak = lastComplete === yesterday ? streak + 1 : 1;
-    setStreak(newStreak); setLastComplete(t);
-    lsSet('streak', newStreak); lsSet('last_complete', t);
+    setStreak(newStreak);
+    setLastComplete(t);
+    await supabase.from('progress').update({
+      streak: newStreak,
+      last_complete: t,
+      updated_at: new Date().toISOString(),
+    }).eq('user_id', session.user.id);
+  };
+
+  const toggleRitualStep = async (ritualId: string, stepIdx: number) => {
+    const uid = session.user.id;
+    const current = ritualSteps[ritualId] || new Set<number>();
+    if (current.has(stepIdx)) {
+      setRitualSteps(m => { const s = new Set(m[ritualId] || []); s.delete(stepIdx); return { ...m, [ritualId]: s }; });
+      await supabase.from('ritual_step_progress')
+        .delete()
+        .eq('user_id', uid)
+        .eq('ritual_id', ritualId)
+        .eq('step_index', stepIdx);
+    } else {
+      setRitualSteps(m => { const s = new Set(m[ritualId] || []); s.add(stepIdx); return { ...m, [ritualId]: s }; });
+      await supabase.from('ritual_step_progress')
+        .insert({ user_id: uid, ritual_id: ritualId, step_index: stepIdx });
+    }
+  };
+
+  const completeRitual = async (ritualId: string) => {
+    setCompletedRituals(s => new Set([...s, ritualId]));
+    await supabase.from('completed_rituals')
+      .upsert({ user_id: session.user.id, ritual_id: ritualId }, { onConflict: 'user_id,ritual_id' });
+    setView('rituals');
   };
 
   const goRoutine = (id: string) => { setSelectedPhase(id); setView('routine-summary'); };
@@ -1106,9 +1278,12 @@ export default function App() {
         {view === 'exercise' && <ExerciseDetailScreen phaseId={selectedPhase} day={day} startIdx={exerciseIdx} back={() => setView('routine-summary')} onComplete={registerWorkout} done={routineDone} streak={streak}/>}
         {view === 'rituals' && <RitualsScreen completedRituals={completedRituals} onSelect={r => { setRitual(r); setView('ritual-detail'); }}/>}
         {view === 'ritual-detail' && ritual && (
-          <RitualDetailScreen ritual={ritual} completedSteps={ritualSteps[ritual.id] || new Set()} back={() => setView('rituals')}
-            toggle={i => setRitualSteps(m => { const s = new Set(m[ritual.id]||[]); s.has(i)?s.delete(i):s.add(i); return {...m,[ritual.id]:s}; })}
-            complete={() => { setCompletedRituals(s => new Set([...s,ritual.id])); setView('rituals'); }}
+          <RitualDetailScreen
+            ritual={ritual}
+            completedSteps={ritualSteps[ritual.id] || new Set()}
+            back={() => setView('rituals')}
+            toggle={i => toggleRitualStep(ritual.id, i)}
+            complete={() => completeRitual(ritual.id)}
           />
         )}
         {view === 'admin' && <AdminPanel onLogout={logout}/>}
@@ -1118,7 +1293,11 @@ export default function App() {
       <BottomNav active={sidebarTab} onNav={navTo} isAdmin={isAdmin}/>
 
       {editing && (
-        <EditNameModal currentName={name} onSave={n => { setName(n); lsSet('name', n); setEditing(false); }} onCancel={() => setEditing(false)}/>
+        <EditNameModal
+          currentName={name}
+          onSave={async n => { await saveName(n); setEditing(false); }}
+          onCancel={() => setEditing(false)}
+        />
       )}
     </div>
   );
