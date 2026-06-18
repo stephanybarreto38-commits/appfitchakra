@@ -693,6 +693,138 @@ function RoutineSummaryScreen({ phaseId, day, back, openEx }: {
   );
 }
 
+// ============ MEDITATION AUDIO ============
+const CHAKRA_AUDIO: Record<string, { hz: number; mantra: string; label: string; color: string }> = {
+  raiz:     { hz: 396, mantra: 'LAM', label: '396 Hz · Liberación del miedo',  color: '#C44B4B' },
+  sacro:    { hz: 417, mantra: 'VAM', label: '417 Hz · Creatividad y flujo',    color: '#E07A3A' },
+  solar:    { hz: 528, mantra: 'RAM', label: '528 Hz · Transformación y poder', color: '#D9AE3F' },
+  corazon:  { hz: 639, mantra: 'YAM', label: '639 Hz · Amor y conexión',        color: '#5A9E6F' },
+  garganta: { hz: 741, mantra: 'HAM', label: '741 Hz · Expresión y verdad',     color: '#4A90C4' },
+  tojo:     { hz: 852, mantra: 'AUM', label: '852 Hz · Intuición y claridad',   color: '#7B68C8' },
+  corona:   { hz: 963, mantra: 'OM',  label: '963 Hz · Consciencia pura',       color: '#A87DC8' },
+};
+
+function isMeditacion(name: string): boolean {
+  return /meditaci|pranayama|escaneo|humming|zumbido|nadi|integrac/i.test(name);
+}
+
+const WAVE_BARS = [0.4, 0.7, 1, 0.8, 0.5, 0.9, 0.6, 1, 0.7, 0.4, 0.8, 0.5];
+
+function MeditationAudio({ phaseId, color }: { phaseId: string; color: string }) {
+  const info = CHAKRA_AUDIO[phaseId] || CHAKRA_AUDIO.corona;
+  const [playing, setPlaying] = useState(false);
+  const [vol, setVol] = useState(0.4);
+  const ctxRef = useRef<AudioContext | null>(null);
+  const nodesRef = useRef<Record<string, OscillatorNode | GainNode>>({});
+
+  function startAudio() {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!ctxRef.current) ctxRef.current = new AudioCtx();
+    const ac = ctxRef.current;
+    if (ac.state === 'suspended') ac.resume();
+
+    const master = ac.createGain();
+    master.gain.setValueAtTime(0, ac.currentTime);
+    master.gain.linearRampToValueAtTime(vol, ac.currentTime + 2);
+    master.connect(ac.destination);
+
+    const osc1 = ac.createOscillator();
+    osc1.type = 'sine'; osc1.frequency.value = info.hz;
+    const g1 = ac.createGain(); g1.gain.value = 0.6;
+    osc1.connect(g1); g1.connect(master); osc1.start();
+
+    const merger = ac.createChannelMerger(2);
+    const oscL = ac.createOscillator(), oscR = ac.createOscillator();
+    oscL.type = 'sine'; oscL.frequency.value = info.hz;
+    oscR.type = 'sine'; oscR.frequency.value = info.hz + 6;
+    const gL = ac.createGain(), gR = ac.createGain();
+    gL.gain.value = 0.25; gR.gain.value = 0.25;
+    oscL.connect(gL); gL.connect(merger, 0, 0);
+    oscR.connect(gR); gR.connect(merger, 0, 1);
+    merger.connect(master); oscL.start(); oscR.start();
+
+    const osc2 = ac.createOscillator();
+    osc2.type = 'sine'; osc2.frequency.value = info.hz / 2;
+    const g2 = ac.createGain(); g2.gain.value = 0.15;
+    osc2.connect(g2); g2.connect(master); osc2.start();
+
+    nodesRef.current = { master, osc1, oscL, oscR, osc2 } as any;
+  }
+
+  function stopAudio() {
+    const { master, osc1, oscL, oscR, osc2 } = nodesRef.current as any;
+    if (!master) return;
+    const ac = ctxRef.current!;
+    master.gain.setValueAtTime(master.gain.value, ac.currentTime);
+    master.gain.linearRampToValueAtTime(0, ac.currentTime + 1.5);
+    setTimeout(() => {
+      [osc1, oscL, oscR, osc2].forEach((o: OscillatorNode) => { try { o.stop(); } catch (_) {} });
+    }, 1600);
+    nodesRef.current = {};
+  }
+
+  useEffect(() => () => { if (playing) stopAudio(); }, []);
+
+  function toggle() {
+    if (playing) { stopAudio(); setPlaying(false); }
+    else { startAudio(); setPlaying(true); }
+  }
+
+  function changeVol(e: Event) {
+    const v = parseFloat((e.target as HTMLInputElement).value);
+    setVol(v);
+    const master = (nodesRef.current as any).master as GainNode | undefined;
+    if (master && ctxRef.current) master.gain.setTargetAtTime(v, ctxRef.current.currentTime, 0.1);
+  }
+
+  const c = color || info.color;
+
+  return (
+    <div style={{ background: 'rgba(0,0,0,0.25)', border: `1px solid ${c}40`, borderRadius: 18, padding: '14px 16px', marginBottom: 20 }}>
+      <div className="flex items-center gap-3 mb-3">
+        <div
+          onClick={toggle}
+          style={{ width: 44, height: 44, borderRadius: '50%', background: playing ? c : 'rgba(255,255,255,0.06)', border: `2px solid ${c}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.3s', boxShadow: playing ? `0 0 18px ${c}60` : 'none', flexShrink: 0 }}
+        >
+          {playing
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill={c === '#D9AE3F' ? '#2A2235' : '#F3EFE6'}><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            : <svg width="14" height="14" viewBox="0 0 24 24" fill={c}><path d="M8 5V19L19 12L8 5Z"/></svg>
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[#F3EFE6] text-xs font-bold mb-0.5">🎵 Sonido del {info.mantra}</p>
+          <p className="text-xs" style={{ color: c }}>{info.label}</p>
+        </div>
+        <span className="font-['Space_Grotesk'] text-[#8B7FA8] text-[10px] shrink-0">{playing ? '▶ sonando' : 'silencio'}</span>
+      </div>
+
+      <div className="flex items-center justify-center gap-1 mb-3" style={{ height: 32 }}>
+        {WAVE_BARS.map((h, i) => (
+          <div key={i} style={{
+            width: 3, borderRadius: 3,
+            height: playing ? `${h * 28}px` : '4px',
+            background: playing ? c : 'rgba(255,255,255,0.12)',
+            transition: 'height 0.3s ease, background 0.3s',
+            animation: playing ? `chakra-wv ${0.6 + i * 0.08}s ease-in-out infinite alternate` : 'none',
+            animationDelay: `${i * 0.06}s`,
+          }}/>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-xs">🔈</span>
+        <input type="range" min="0.05" max="0.8" step="0.05" value={vol} onInput={changeVol}
+          style={{ flex: 1, accentColor: c, cursor: 'pointer', height: 3 }}/>
+        <span className="text-xs">🔊</span>
+      </div>
+      <p className="text-[#4A3F5C] text-[10px] text-center mt-2 leading-relaxed">
+        Beat binaural · onda theta 6 Hz · usa audífonos para mayor efecto
+      </p>
+      <style>{`@keyframes chakra-wv { from { transform: scaleY(0.4); } to { transform: scaleY(1); } }`}</style>
+    </div>
+  );
+}
+
 // ============ EXERCISE DETAIL ============
 function ExerciseDetailScreen({ phaseId, day, startIdx, back, onComplete, done, streak }: {
   phaseId: string; day: number; startIdx: number; back: () => void;
@@ -745,6 +877,10 @@ function ExerciseDetailScreen({ phaseId, day, startIdx, back, onComplete, done, 
         </div>
         <p className="text-[#8B7FA8] text-[11px] font-semibold tracking-widest mb-2">CÓMO HACERLO</p>
         <p className="text-[#D4CEDF] text-sm leading-relaxed mb-5">{step.desc}</p>
+
+        {isMeditacion(step.name) && (
+          <MeditationAudio key={`${phaseId}-${idx}`} phaseId={phaseId} color={phase.c} />
+        )}
 
         {isLast && (
           done
