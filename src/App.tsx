@@ -213,63 +213,63 @@ function BottomNav({ active, onNav, isAdmin }: {
 // ============ AUTH SCREENS ============
 function EmailLogin() {
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [step, setStep] = useState<1 | 2>(1);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [resent, setResent] = useState(false);
 
-  const sendOtp = async (e: string) => {
-    // No emailRedirectTo — magic link uses Supabase's configured site URL,
-    // avoiding the "site can't be reached" error from localhost redirects.
-    return supabase.auth.signInWithOtp({ email: e, options: { shouldCreateUser: true } });
-  };
-
-  const nextStep = async () => {
+  const doLogin = async () => {
     const e = email.trim().toLowerCase();
     if (!e.includes('@')) { setError('Ingresa un correo válido.'); return; }
     setError('');
     setLoading(true);
 
-    if (e !== ADMIN_EMAIL) {
-      const { data: allowed, error: rpcErr } = await supabase.rpc('is_email_allowed', { check_email: e });
-      if (rpcErr || !allowed) {
-        setError('Este correo no tiene acceso. Solicítalo a la administradora.');
+    try {
+      // Edge function generates the OTP token directly — no email required
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auto-otp`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ email: e }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (data.error === 'not_allowed') {
+          setError('Este correo no tiene acceso. Solicítalo a la administradora.');
+        } else {
+          setError('Error al acceder. Inténtalo de nuevo.');
+        }
+        setShake(true);
+        setTimeout(() => setShake(false), 600);
         setLoading(false);
         return;
       }
-    }
 
-    const { error: otpErr } = await sendOtp(e);
-    if (otpErr) {
-      setError('Error al enviar el código. Inténtalo de nuevo.');
-      setLoading(false);
-      return;
-    }
-    setStep(2);
-    setLoading(false);
-  };
+      // Verify the token returned from the edge function
+      const { error: verifyErr } = await supabase.auth.verifyOtp({
+        email: e,
+        token: data.token,
+        type: 'email',
+      });
 
-  const doLogin = async () => {
-    const e = email.trim().toLowerCase();
-    if (!code.trim()) return;
-    setLoading(true);
-    const { error: verifyErr } = await supabase.auth.verifyOtp({ email: e, token: code.trim(), type: 'email' });
-    if (verifyErr) {
-      setError('Código incorrecto. Verifica el código en tu correo.');
+      if (verifyErr) {
+        setError('Error de verificación. Inténtalo de nuevo.');
+        setShake(true);
+        setTimeout(() => setShake(false), 600);
+      }
+    } catch {
+      setError('Error de conexión. Inténtalo de nuevo.');
       setShake(true);
       setTimeout(() => setShake(false), 600);
     }
-    setLoading(false);
-  };
 
-  const resend = async () => {
-    const e = email.trim().toLowerCase();
-    setResent(false);
-    await sendOtp(e);
-    setResent(true);
-    setTimeout(() => setResent(false), 4000);
+    setLoading(false);
   };
 
   return (
@@ -281,73 +281,40 @@ function EmailLogin() {
           <p className="text-[#8B7FA8] text-sm leading-relaxed">Comunidad privada.<br/>Ingresa tu correo para continuar.</p>
         </div>
 
-        {step === 1 && (
-          <div className={`mb-4 ${shake ? 'animate-bounce' : ''}`}>
-            <input type="email" placeholder="tu@correo.com" value={email}
-              onChange={e => { setEmail(e.target.value); setError(''); }}
-              onKeyDown={e => { if (e.key === 'Enter') nextStep(); }}
-              className="w-full bg-white/[0.07] border border-white/20 hover:border-white/30 focus:border-[#E0AD66] rounded-2xl text-[#F3EFE6] text-base py-4 px-5 text-center outline-none transition-all"
-            />
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="mb-4">
-            <div className="flex items-center gap-3 mb-4 bg-white/[0.05] rounded-xl px-3 py-2.5">
-              <span className="text-[#8B7FA8] text-sm flex-1 truncate">{email}</span>
-              <button onClick={() => { setStep(1); setError(''); setCode(''); }} className="text-[#E0AD66] text-xs font-semibold cursor-pointer bg-transparent border-none shrink-0">Cambiar</button>
-            </div>
-
-            <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 mb-4 text-center">
-              <div className="text-3xl mb-2">📬</div>
-              <p className="text-[#F3EFE6] text-sm font-semibold mb-1">Revisa tu correo</p>
-              <p className="text-[#8B7FA8] text-xs leading-relaxed">
-                Te enviamos un correo a <span className="text-[#C7BCDA]">{email}</span>.<br/>
-                Busca el <strong className="text-[#F3EFE6]">código de 6 dígitos</strong> e ingrésalo aquí.
-              </p>
-            </div>
-
-            <div className={`mb-3 ${shake ? 'animate-bounce' : ''}`}>
-              <input
-                placeholder="000000"
-                value={code}
-                onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError(''); }}
-                onKeyDown={e => { if (e.key === 'Enter') doLogin(); }}
-                className="w-full bg-white/[0.07] border border-white/20 hover:border-white/30 focus:border-[#E0AD66] rounded-2xl text-[#F3EFE6] text-2xl py-4 px-5 text-center outline-none transition-all font-['Space_Grotesk'] tracking-[6px] font-bold"
-                maxLength={6}
-                inputMode="numeric"
-                autoFocus
-              />
-            </div>
-
-            {resent && <p className="text-[#5A9E6F] text-xs text-center mb-2 font-semibold">✓ Código reenviado</p>}
-          </div>
-        )}
-
-        {error && <div className="bg-[rgba(196,75,75,0.1)] border border-[rgba(196,75,75,0.2)] rounded-xl mb-4 py-2.5 px-4 text-center"><p className="text-[#E07070] text-sm">🔒 {error}</p></div>}
-
-        {step === 1 ? (
-          <button
-            onClick={nextStep}
+        <div className={`mb-4 ${shake ? 'animate-bounce' : ''}`}>
+          <input
+            type="email"
+            placeholder="tu@correo.com"
+            value={email}
+            onChange={e => { setEmail(e.target.value); setError(''); }}
+            onKeyDown={e => { if (e.key === 'Enter') doLogin(); }}
             disabled={loading}
-            className="w-full bg-[#E0AD66] hover:bg-[#d49e55] text-[#2A2235] font-bold text-base py-4 rounded-2xl mb-6 transition-all cursor-pointer disabled:opacity-60"
-          >
-            {loading ? 'Un momento...' : 'Continuar →'}
-          </button>
-        ) : (
-          <div className="flex flex-col gap-3 mb-6">
-            <button
-              onClick={doLogin}
-              disabled={loading || code.length < 6}
-              className="w-full bg-[#E0AD66] hover:bg-[#d49e55] text-[#2A2235] font-bold text-base py-4 rounded-2xl transition-all cursor-pointer disabled:opacity-50"
-            >
-              {loading ? 'Verificando...' : 'Ingresar →'}
-            </button>
-            <button onClick={resend} className="w-full py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[#8B7FA8] hover:text-[#C7BCDA] text-xs font-semibold transition-all cursor-pointer">
-              Reenviar código
-            </button>
+            className="w-full bg-white/[0.07] border border-white/20 hover:border-white/30 focus:border-[#E0AD66] rounded-2xl text-[#F3EFE6] text-base py-4 px-5 text-center outline-none transition-all disabled:opacity-60"
+          />
+        </div>
+
+        {error && (
+          <div className="bg-[rgba(196,75,75,0.1)] border border-[rgba(196,75,75,0.2)] rounded-xl mb-4 py-2.5 px-4 text-center">
+            <p className="text-[#E07070] text-sm">🔒 {error}</p>
           </div>
         )}
+
+        <button
+          onClick={doLogin}
+          disabled={loading || !email.includes('@')}
+          className="w-full bg-[#E0AD66] hover:bg-[#d49e55] text-[#2A2235] font-bold text-base py-4 rounded-2xl mb-6 transition-all cursor-pointer disabled:opacity-60"
+        >
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Accediendo...
+            </span>
+          ) : 'Ingresar →'}
+        </button>
+
         <p className="text-[#4A3F5C] text-xs text-center">¿Sin acceso? Solicítalo a la administradora del programa.</p>
       </div>
     </div>
