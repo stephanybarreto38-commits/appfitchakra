@@ -251,11 +251,10 @@ function EmailLogin() {
         return;
       }
 
-      // Verify the token returned from the edge function
+      // Use token_hash (hashed_token) for magic link verification — more reliable than email_otp
       const { error: verifyErr } = await supabase.auth.verifyOtp({
-        email: e,
-        token: data.token,
-        type: 'email',
+        token_hash: data.token_hash,
+        type: 'magiclink',
       });
 
       if (verifyErr) {
