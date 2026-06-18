@@ -705,7 +705,7 @@ const CHAKRA_AUDIO: Record<string, { hz: number; mantra: string; label: string; 
 };
 
 function isMeditacion(name: string): boolean {
-  return /meditaci|pranayama|escaneo|humming|zumbido|nadi|integrac/i.test(name);
+  return /meditaci|pranayama|escaneo|humming|zumbido|nadi|sukhasana|respiraci/i.test(name);
 }
 
 const WAVE_BARS = [0.4, 0.7, 1, 0.8, 0.5, 0.9, 0.6, 1, 0.7, 0.4, 0.8, 0.5];
