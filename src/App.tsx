@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import {
   Home, Sparkles, List, ChevronLeft, ChevronRight,
   Play, Pause, RotateCcw, Check, User, Shield,
-  Moon, Flame, LogOut, Edit2, X, Plus, Trash2
+  Moon, Flame, LogOut, Edit2, X, Plus, Trash2, KeyRound
 } from 'lucide-react';
 import {
   ADMIN_EMAIL, getTodayStr, getYesterdayStr, daysBetween,
@@ -212,63 +212,63 @@ function BottomNav({ active, onNav, isAdmin }: {
 
 // ============ AUTH SCREENS ============
 function EmailLogin() {
+  const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const triggerShake = () => { setShake(true); setTimeout(() => setShake(false), 600); };
+
+  const goToCode = () => {
+    if (!email.includes('@')) { setError('Ingresa un correo válido.'); return; }
+    setError('');
+    setStep('code');
+  };
+
   const doLogin = async () => {
     const e = email.trim().toLowerCase();
-    if (!e.includes('@')) { setError('Ingresa un correo válido.'); return; }
+    const c = code.trim().toUpperCase();
+    if (!c) { setError('Ingresa el código.'); return; }
     setError('');
     setLoading(true);
 
     try {
-      // Edge function generates the OTP token directly — no email required
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auto-otp`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-code`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
-          body: JSON.stringify({ email: e }),
+          body: JSON.stringify({ email: e, code: c, redirectTo: window.location.origin }),
         }
       );
 
       const data = await res.json();
 
       if (!res.ok) {
-        if (data.error === 'not_allowed') {
-          setError('Este correo no tiene acceso. Solicítalo a la administradora.');
+        if (data.error === 'invalid_code') {
+          setError('Código incorrecto o expirado.');
+        } else if (data.error === 'not_allowed') {
+          setError('Este correo no tiene acceso.');
         } else {
           setError('Error al acceder. Inténtalo de nuevo.');
         }
-        setShake(true);
-        setTimeout(() => setShake(false), 600);
+        triggerShake();
         setLoading(false);
         return;
       }
 
-      // Use token_hash (hashed_token) for magic link verification — more reliable than email_otp
-      const { error: verifyErr } = await supabase.auth.verifyOtp({
-        token_hash: data.token_hash,
-        type: 'magiclink',
-      });
-
-      if (verifyErr) {
-        setError('Error de verificación. Inténtalo de nuevo.');
-        setShake(true);
-        setTimeout(() => setShake(false), 600);
-      }
+      // Navigate to the action_link — Supabase handles auth and redirects back
+      window.location.href = data.action_link;
     } catch {
       setError('Error de conexión. Inténtalo de nuevo.');
-      setShake(true);
-      setTimeout(() => setShake(false), 600);
+      triggerShake();
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -277,44 +277,83 @@ function EmailLogin() {
         <div className="text-center mb-10">
           <div className="text-6xl mb-6 inline-block">🌸</div>
           <h1 className="font-['Fraunces'] text-[#F3EFE6] text-3xl font-semibold mb-3">Bienvenida a ChakraFit</h1>
-          <p className="text-[#8B7FA8] text-sm leading-relaxed">Comunidad privada.<br/>Ingresa tu correo para continuar.</p>
+          {step === 'email'
+            ? <p className="text-[#8B7FA8] text-sm leading-relaxed">Comunidad privada.<br/>Ingresa tu correo para continuar.</p>
+            : <p className="text-[#8B7FA8] text-sm leading-relaxed">Ingresa el código que te compartió<br/>la administradora.</p>
+          }
         </div>
 
-        <div className={`mb-4 ${shake ? 'animate-bounce' : ''}`}>
-          <input
-            type="email"
-            placeholder="tu@correo.com"
-            value={email}
-            onChange={e => { setEmail(e.target.value); setError(''); }}
-            onKeyDown={e => { if (e.key === 'Enter') doLogin(); }}
-            disabled={loading}
-            className="w-full bg-white/[0.07] border border-white/20 hover:border-white/30 focus:border-[#E0AD66] rounded-2xl text-[#F3EFE6] text-base py-4 px-5 text-center outline-none transition-all disabled:opacity-60"
-          />
-        </div>
-
-        {error && (
-          <div className="bg-[rgba(196,75,75,0.1)] border border-[rgba(196,75,75,0.2)] rounded-xl mb-4 py-2.5 px-4 text-center">
-            <p className="text-[#E07070] text-sm">🔒 {error}</p>
-          </div>
+        {step === 'email' ? (
+          <>
+            <div className={`mb-4 ${shake ? 'animate-bounce' : ''}`}>
+              <input
+                type="email"
+                placeholder="tu@correo.com"
+                value={email}
+                onChange={e => { setEmail(e.target.value); setError(''); }}
+                onKeyDown={e => { if (e.key === 'Enter') goToCode(); }}
+                autoFocus
+                className="w-full bg-white/[0.07] border border-white/20 hover:border-white/30 focus:border-[#E0AD66] rounded-2xl text-[#F3EFE6] text-base py-4 px-5 text-center outline-none transition-all"
+              />
+            </div>
+            {error && (
+              <div className="bg-[rgba(196,75,75,0.1)] border border-[rgba(196,75,75,0.2)] rounded-xl mb-4 py-2.5 px-4 text-center">
+                <p className="text-[#E07070] text-sm">{error}</p>
+              </div>
+            )}
+            <button
+              onClick={goToCode}
+              disabled={!email.includes('@')}
+              className="w-full bg-[#E0AD66] hover:bg-[#d49e55] text-[#2A2235] font-bold text-base py-4 rounded-2xl mb-6 transition-all cursor-pointer disabled:opacity-60"
+            >
+              Continuar →
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="bg-white/[0.04] border border-white/10 rounded-xl px-4 py-2.5 mb-4 text-center">
+              <p className="text-[#8B7FA8] text-xs mb-0.5">Accediendo como</p>
+              <p className="text-[#F3EFE6] text-sm font-medium">{email}</p>
+            </div>
+            <div className={`mb-4 ${shake ? 'animate-bounce' : ''}`}>
+              <input
+                type="text"
+                placeholder="Ej: AB3K7X"
+                value={code}
+                onChange={e => { setCode(e.target.value.toUpperCase()); setError(''); }}
+                onKeyDown={e => { if (e.key === 'Enter') doLogin(); }}
+                maxLength={6}
+                autoFocus
+                className="w-full bg-white/[0.07] border border-white/20 hover:border-white/30 focus:border-[#E0AD66] rounded-2xl text-[#F3EFE6] text-xl py-4 px-5 text-center outline-none transition-all tracking-[0.3em] font-['Space_Grotesk'] font-bold"
+              />
+            </div>
+            {error && (
+              <div className="bg-[rgba(196,75,75,0.1)] border border-[rgba(196,75,75,0.2)] rounded-xl mb-4 py-2.5 px-4 text-center">
+                <p className="text-[#E07070] text-sm">{error}</p>
+              </div>
+            )}
+            <button
+              onClick={doLogin}
+              disabled={loading || code.length < 6}
+              className="w-full bg-[#E0AD66] hover:bg-[#d49e55] text-[#2A2235] font-bold text-base py-4 rounded-2xl mb-4 transition-all cursor-pointer disabled:opacity-60"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  Verificando...
+                </span>
+              ) : 'Ingresar →'}
+            </button>
+            <button onClick={() => { setStep('email'); setCode(''); setError(''); }} className="w-full text-[#6E6480] hover:text-[#8B7FA8] text-sm transition-all cursor-pointer py-2">
+              ← Cambiar correo
+            </button>
+          </>
         )}
 
-        <button
-          onClick={doLogin}
-          disabled={loading || !email.includes('@')}
-          className="w-full bg-[#E0AD66] hover:bg-[#d49e55] text-[#2A2235] font-bold text-base py-4 rounded-2xl mb-6 transition-all cursor-pointer disabled:opacity-60"
-        >
-          {loading ? (
-            <span className="flex items-center justify-center gap-2">
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-              </svg>
-              Accediendo...
-            </span>
-          ) : 'Ingresar →'}
-        </button>
-
-        <p className="text-[#4A3F5C] text-xs text-center">¿Sin acceso? Solicítalo a la administradora del programa.</p>
+        <p className="text-[#4A3F5C] text-xs text-center mt-4">¿Sin acceso? Solicítalo a la administradora del programa.</p>
       </div>
     </div>
   );
@@ -875,7 +914,8 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   const [invited, setInvited] = useState<AllowedEmail[]>([]);
   const [newEmail, setNewEmail] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [generatedCode, setGeneratedCode] = useState<{ email: string; code: string } | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
@@ -895,28 +935,55 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     const e = newEmail.trim().toLowerCase();
     if (!e.includes('@')) { setError('Correo inválido.'); return; }
     if (e === ADMIN_EMAIL) { setError('Ese es tu correo de admin.'); return; }
+
     const { error: insertErr } = await supabase
       .from('allowed_emails')
       .upsert({ email: e, invited_by: ADMIN_EMAIL }, { onConflict: 'email' });
     if (insertErr) { setError('Error al agregar el correo.'); return; }
 
-    // Send invitation email with a direct login link
-    await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-user`,
+    // Generate login code via edge function
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ email: e, redirectTo: window.location.origin }),
+        body: JSON.stringify({ email: e }),
       }
     );
+    const result = await res.json();
+    if (!res.ok) { setError('Error al generar código.'); return; }
 
     await loadInvited();
     setNewEmail(''); setError('');
-    setSuccess('✓ Acceso habilitado · correo de invitación enviado a ' + e);
-    setTimeout(() => setSuccess(''), 4000);
+    setGeneratedCode({ email: e, code: result.code });
+    setCopiedCode(false);
+  };
+
+  const regenerateCode = async (e: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ email: e }),
+      }
+    );
+    const result = await res.json();
+    if (res.ok) { setGeneratedCode({ email: e, code: result.code }); setCopiedCode(false); }
+  };
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
   };
 
   const revoke = async (email: string) => {
@@ -944,7 +1011,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
       {/* How it works */}
       <div className="bg-[rgba(224,173,102,0.07)] border border-[rgba(224,173,102,0.18)] rounded-xl lg:rounded-2xl p-4 mb-6">
         <p className="text-[#E0AD66] text-[11px] font-semibold tracking-widest mb-2">✨ CÓMO FUNCIONA</p>
-        <p className="text-[#C7BCDA] text-sm leading-relaxed">Agrega el correo de cada persona → Supabase le envía un <strong className="text-[#F3EFE6]">código OTP</strong> por correo cuando intente ingresar. El acceso funciona en <strong className="text-[#F3EFE6]">cualquier dispositivo</strong>.</p>
+        <p className="text-[#C7BCDA] text-sm leading-relaxed">Agrega el correo → se genera un <strong className="text-[#F3EFE6]">código de acceso</strong> → lo copias y se lo mandas a la persona (WhatsApp, etc.) → ella lo ingresa en la app junto a su correo.</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 mb-7">
@@ -969,7 +1036,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
           <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl lg:rounded-2xl p-4 mb-5">
             <div className="flex gap-2 mb-3">
               <input type="email" placeholder="correo@ejemplo.com" value={newEmail}
-                onChange={e => { setNewEmail(e.target.value); setError(''); setSuccess(''); }}
+                onChange={e => { setNewEmail(e.target.value); setError(''); setGeneratedCode(null); }}
                 onKeyDown={e => { if (e.key === 'Enter') add(); }}
                 className="flex-1 bg-white/[0.07] border border-white/15 focus:border-[#E0AD66] rounded-xl text-[#F3EFE6] text-sm py-2.5 px-3.5 outline-none transition-all"
               />
@@ -978,7 +1045,28 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
               </button>
             </div>
             {error && <p className="text-[#E07070] text-xs">{error}</p>}
-            {success && <p className="text-[#5A9E6F] text-xs font-semibold">{success}</p>}
+
+            {/* Generated code display */}
+            {generatedCode && (
+              <div className="mt-3 bg-[rgba(90,158,111,0.08)] border border-[rgba(90,158,111,0.25)] rounded-xl p-4">
+                <p className="text-[#5A9E6F] text-[11px] font-semibold tracking-widest mb-2">CODIGO GENERADO PARA {generatedCode.email}</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 bg-[#0D0A18] border border-white/10 rounded-xl py-3 px-4 text-center">
+                    <span className="font-['Space_Grotesk'] text-[#F3EFE6] text-2xl font-bold tracking-[0.3em]">{generatedCode.code}</span>
+                  </div>
+                  <button
+                    onClick={() => copyCode(generatedCode.code)}
+                    className="bg-[rgba(90,158,111,0.15)] hover:bg-[rgba(90,158,111,0.25)] border border-[rgba(90,158,111,0.3)] rounded-xl py-3 px-4 text-[#5A9E6F] text-sm font-semibold cursor-pointer transition-all shrink-0"
+                  >
+                    {copiedCode ? '✓ Copiado' : 'Copiar'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-[#6E6480] text-xs">Valido por 48 horas · un solo uso</p>
+                  <button onClick={() => regenerateCode(generatedCode.email)} className="text-[#6E6480] hover:text-[#8B7FA8] text-xs cursor-pointer transition-all underline">Generar nuevo</button>
+                </div>
+              </div>
+            )}
           </div>
 
           <h2 className="text-[#8B7FA8] text-[11px] font-semibold tracking-widest mb-3">ADMINISTRADORA</h2>
@@ -1008,15 +1096,20 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                         <div className="w-8 h-8 rounded-full bg-[rgba(90,158,111,0.12)] border-2 border-[rgba(90,158,111,0.25)] flex items-center justify-center text-xs text-[#5A9E6F] font-bold shrink-0">✓</div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[#C7BCDA] text-sm font-medium truncate">{e}</p>
-                          <p className="text-[#6E6480] text-[11px] mt-0.5">Invitada el {formatDate(invited_at)}</p>
+                          <p className="text-[#6E6480] text-[11px] mt-0.5">Agregada el {formatDate(invited_at)}</p>
                         </div>
-                        {confirmDelete === e
-                          ? <div className="flex gap-1.5 shrink-0">
-                              <button onClick={() => revoke(e)} className="bg-[rgba(196,75,75,0.15)] border border-[rgba(196,75,75,0.3)] rounded-lg text-[#E07070] text-[11px] py-1 px-2.5 font-semibold cursor-pointer">Revocar</button>
-                              <button onClick={() => setConfirmDelete(null)} className="bg-transparent border border-white/10 rounded-lg text-[#6E6480] text-[11px] py-1 px-2 cursor-pointer"><X size={12}/></button>
-                            </div>
-                          : <button onClick={() => setConfirmDelete(e)} className="text-[#6E6480] hover:text-[#E07070] cursor-pointer transition-all shrink-0 p-1"><Trash2 size={14}/></button>
-                        }
+                        <div className="flex items-center gap-1 shrink-0">
+                          {confirmDelete === e
+                            ? <>
+                                <button onClick={() => revoke(e)} className="bg-[rgba(196,75,75,0.15)] border border-[rgba(196,75,75,0.3)] rounded-lg text-[#E07070] text-[11px] py-1 px-2.5 font-semibold cursor-pointer">Revocar</button>
+                                <button onClick={() => setConfirmDelete(null)} className="bg-transparent border border-white/10 rounded-lg text-[#6E6480] text-[11px] py-1 px-2 cursor-pointer"><X size={12}/></button>
+                              </>
+                            : <>
+                                <button onClick={() => regenerateCode(e)} title="Generar nuevo código" className="text-[#6E6480] hover:text-[#E0AD66] cursor-pointer transition-all p-1"><KeyRound size={14}/></button>
+                                <button onClick={() => setConfirmDelete(e)} className="text-[#6E6480] hover:text-[#E07070] cursor-pointer transition-all p-1"><Trash2 size={14}/></button>
+                              </>
+                          }
+                        </div>
                       </div>
                     </div>
                   ))}
