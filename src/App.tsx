@@ -899,10 +899,24 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
       .from('allowed_emails')
       .upsert({ email: e, invited_by: ADMIN_EMAIL }, { onConflict: 'email' });
     if (insertErr) { setError('Error al agregar el correo.'); return; }
+
+    // Send invitation email with a direct login link
+    await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-user`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ email: e, redirectTo: window.location.origin }),
+      }
+    );
+
     await loadInvited();
     setNewEmail(''); setError('');
-    setSuccess('✓ Acceso habilitado para ' + e);
-    setTimeout(() => setSuccess(''), 3000);
+    setSuccess('✓ Acceso habilitado · correo de invitación enviado a ' + e);
+    setTimeout(() => setSuccess(''), 4000);
   };
 
   const revoke = async (email: string) => {
