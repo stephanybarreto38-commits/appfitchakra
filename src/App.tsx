@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, memo } from 'react';
 import {
   Home, Sparkles, List, ChevronLeft, ChevronRight,
   Play, Pause, RotateCcw, Check, User, Shield,
-  Moon, Flame, LogOut, Edit2, X, Plus, Trash2
+  Moon, Flame, LogOut, Edit2, X, Plus, Trash2, Globe
 } from 'lucide-react';
 import {
   ADMIN_EMAIL, getTodayStr, getYesterdayStr, daysBetween,
@@ -419,12 +419,11 @@ function Sidebar({ active, onNav, isAdmin, name, streak, day, onLogout, onEditNa
           <p className="text-[10px] font-semibold tracking-widest mb-1" style={{ color: phase.c }}>{phase.name.toUpperCase()}</p>
           <p className="text-[#F3EFE6] text-xs leading-snug italic font-['Fraunces']">"{phase.int}"</p>
         </div>
-        <div className="flex items-center gap-2 mb-2">
-          <button onClick={onToggleLang} className="flex items-center gap-1.5 flex-1 px-2 py-2 rounded-xl text-[#8B7FA8] hover:text-[#C7BCDA] text-xs transition-all cursor-pointer hover:bg-white/[0.03] border border-white/[0.06]">
-            <span className="font-['Space_Grotesk'] font-bold text-[10px]">{lang === 'es' ? '🇺🇸 EN' : '🇪🇸 ES'}</span>
-            <span className="text-[11px]">{lang === 'es' ? 'English' : 'Español'}</span>
-          </button>
-        </div>
+        <button onClick={onToggleLang} className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl mb-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-[#C7BCDA] hover:text-[#F3EFE6] transition-all cursor-pointer">
+          <Globe size={14} className="shrink-0"/>
+          <span className="text-xs font-semibold flex-1 text-left">{lang === 'es' ? 'Switch to English' : 'Cambiar a Español'}</span>
+          <span className="font-['Space_Grotesk'] font-bold text-[10px] bg-white/10 px-1.5 py-0.5 rounded-md">{lang === 'es' ? 'EN' : 'ES'}</span>
+        </button>
         <button onClick={onLogout} className="flex items-center gap-2 w-full px-2 py-2 rounded-xl text-[#6E6480] hover:text-[#8B7FA8] text-xs transition-all cursor-pointer hover:bg-white/[0.03]">
           <LogOut size={13}/> {t('logout_btn')}
         </button>
@@ -454,9 +453,10 @@ function BottomNav({ active, onNav, isAdmin, onToggleLang, lang }: {
           <span className={`text-[10px] font-medium ${active === id ? 'text-[#E0AD66]' : 'text-[#8B7FA8]'}`}>{label}</span>
         </button>
       ))}
-      <button onClick={onToggleLang} className="flex-1 flex flex-col items-center gap-1 py-2.5 cursor-pointer">
-        <div className="w-5 h-5 rounded-full bg-white/[0.08] border border-white/20 flex items-center justify-center">
-          <span className="font-['Space_Grotesk'] font-bold text-[9px] text-[#C7BCDA]">{lang === 'es' ? 'EN' : 'ES'}</span>
+      <button onClick={onToggleLang} className="flex-1 flex flex-col items-center gap-1 py-2.5 cursor-pointer group">
+        <div className="relative">
+          <Globe size={20} strokeWidth={1.7} className="text-[#8B7FA8] group-active:text-[#C7BCDA]"/>
+          <span className="absolute -top-1 -right-2 font-['Space_Grotesk'] font-bold text-[8px] text-[#E0AD66] bg-[#2A2235] border border-[#E0AD66]/30 px-0.5 rounded leading-none">{lang === 'es' ? 'EN' : 'ES'}</span>
         </div>
         <span className="text-[10px] font-medium text-[#8B7FA8]">{lang === 'es' ? 'EN' : 'ES'}</span>
       </button>
